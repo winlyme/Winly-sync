@@ -24,6 +24,36 @@
     const RAELYN_ANCHOR_X = 96;
     const RAELYN_ANCHOR_Y = 81;
     const RAELYN_SCALE = 1.55;
+    const BOSS_ATTACK_FRAME_RATE = 30;
+    const BOSS_ATTACK_COMPLETION_MARGIN = 0.22;
+    const bossSpriteDefinitions = Object.freeze({
+      graystone_keeper: Object.freeze({
+        frameCount: 44,
+        frameWidth: 159,
+        frameHeight: 210,
+        anchorX: 58,
+        anchorY: 190,
+        scale: 0.72,
+      }),
+      furnace_colossus: Object.freeze({
+        frameCount: 27,
+        frameWidth: 340,
+        frameHeight: 490,
+        anchorX: 196,
+        anchorY: 263,
+        scale: 0.62,
+      }),
+      stonecrown_lord: Object.freeze({
+        frameCount: 48,
+        frameWidth: 379,
+        frameHeight: 248,
+        anchorX: 145,
+        anchorY: 154,
+        scale: 0.86,
+      }),
+    });
+    const bossFrames = loadBossFrames();
+    const bossRenderStates = new WeakMap();
     let characterAnimationTime = 0;
     let previousVisualElapsedTime = state.visualElapsedTime;
 
@@ -54,6 +84,32 @@
         });
       });
       return actions;
+    }
+
+    function loadBossFrames() {
+      const frameGroups = {};
+      Object.entries(bossSpriteDefinitions).forEach(([bossId, definition]) => {
+        frameGroups[bossId] = Array.from(
+          { length: definition.frameCount },
+          (_, index) => {
+            const frame = { image: new Image(), failed: false };
+            const frameNumber = String(index + 1).padStart(4, "0");
+            frame.image.decoding = "async";
+            frame.image.addEventListener(
+              "error",
+              () => {
+                frame.failed = true;
+              },
+              { once: true },
+            );
+            frame.image.src =
+              `art/third-party/boss-runtime/${bossId}/left/` +
+              `frame_${frameNumber}.png`;
+            return frame;
+          },
+        );
+      });
+      return frameGroups;
     }
 
     function activeScene() {
@@ -1131,8 +1187,98 @@
       }
     }
 
-    function drawBoss(boss) {
-      const point = gridToScreen(boss.x, boss.y);
+    function getBossRenderState(boss) {
+      let renderState = bossRenderStates.get(boss);
+      if (!renderState) {
+        renderState = {
+          lastAttackPulse: boss.attackPulse,
+          lastAttackTimer: boss.attackTimer,
+          attackStartedAt: null,
+        };
+        bossRenderStates.set(boss, renderState);
+      }
+      return renderState;
+    }
+
+    function selectBossFrame(boss, definition) {
+      const renderState = getBossRenderState(boss);
+      const attackTimerJumped =
+        boss.attackTimer > renderState.lastAttackTimer + 0.25;
+      const attackTriggered =
+        boss.alive &&
+        boss.attackPulse > 0 &&
+        (boss.attackPulse > renderState.lastAttackPulse || attackTimerJumped);
+      if (attackTriggered && renderState.attackStartedAt === null) {
+        renderState.attackStartedAt = state.elapsedTime;
+      }
+
+      let frameIndex = 0;
+      if (renderState.attackStartedAt !== null) {
+        const nominalDuration =
+          definition.frameCount / BOSS_ATTACK_FRAME_RATE;
+        const availableDuration = Math.max(
+          1 / BOSS_ATTACK_FRAME_RATE,
+          boss.attackInterval - BOSS_ATTACK_COMPLETION_MARGIN,
+        );
+        const attackDuration = Math.min(nominalDuration, availableDuration);
+        const attackElapsed = Math.max(
+          0,
+          state.elapsedTime - renderState.attackStartedAt,
+        );
+        if (attackElapsed < attackDuration) {
+          const playbackRate = definition.frameCount / attackDuration;
+          frameIndex = Math.min(
+            Math.floor(attackElapsed * playbackRate),
+            definition.frameCount - 1,
+          );
+        } else {
+          renderState.attackStartedAt = null;
+        }
+      }
+
+      renderState.lastAttackPulse = boss.attackPulse;
+      renderState.lastAttackTimer = boss.attackTimer;
+      return frameIndex;
+    }
+
+    function bossFrameGroupReady(bossId, definition) {
+      const frames = bossFrames[bossId];
+      return (
+        frames?.length === definition.frameCount &&
+        frames.every(
+          (frame) =>
+            !frame.failed &&
+            frame.image.complete &&
+            frame.image.naturalWidth === definition.frameWidth &&
+            frame.image.naturalHeight === definition.frameHeight,
+        )
+      );
+    }
+
+    function drawBossSprite(boss, point) {
+      const definition = bossSpriteDefinitions[boss.id];
+      if (!definition || !bossFrameGroupReady(boss.id, definition)) {
+        return false;
+      }
+
+      const frameIndex = selectBossFrame(boss, definition);
+      const frame = bossFrames[boss.id][frameIndex];
+      context.save();
+      context.translate(Math.round(point.x), Math.round(point.y));
+      context.filter =
+        boss.hitFlash > 0 ? "brightness(1.75) saturate(0.35)" : "none";
+      context.drawImage(
+        frame.image,
+        -definition.anchorX * definition.scale,
+        -definition.anchorY * definition.scale,
+        definition.frameWidth * definition.scale,
+        definition.frameHeight * definition.scale,
+      );
+      context.restore();
+      return true;
+    }
+
+    function drawFallbackBoss(boss, point) {
       const collapsed = !boss.alive;
       const direction = boss.direction || { x: 0, y: 1 };
       const screenDirection = {
@@ -1167,6 +1313,13 @@
         4,
       );
       context.restore();
+    }
+
+    function drawBoss(boss) {
+      const point = gridToScreen(boss.x, boss.y);
+      if (!drawBossSprite(boss, point)) {
+        drawFallbackBoss(boss, point);
+      }
     }
 
     function drawEntityHealthBar(x, y, current, max, color) {

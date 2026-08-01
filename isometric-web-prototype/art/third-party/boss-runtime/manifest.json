@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "sourceRoot": "C:/Users/winly/Documents/Codex/2026-08-01/e-steamlibrary-steamapps-common-kingdom-rush/outputs/三Boss_普攻与技能动画/",
+  "framePattern": "frame_0001.png",
+  "format": "RGBA PNG",
+  "bosses": {
+    "graystone_keeper": {
+      "displayName": "灰岩守门者",
+      "sourceCharacter": "猎人/蜘蛛女王",
+      "sourceAction": "01_猎人_蜘蛛女王/普攻_远程/PNG帧序列/left",
+      "runtimePath": "graystone_keeper/left",
+      "action": "basic_attack",
+      "direction": "left",
+      "frameCount": 44,
+      "frameRate": 30,
+      "canvas": { "width": 159, "height": 210 },
+      "sourceAnchor": { "x": 58, "y": 190 },
+      "runtimeScale": 0.72
+    },
+    "furnace_colossus": {
+      "displayName": "炉心巨像",
+      "sourceCharacter": "战士/穆格伦",
+      "sourceAction": "02_战士_穆格伦/普攻_近战/PNG帧序列/left",
+      "runtimePath": "furnace_colossus/left",
+      "action": "basic_attack",
+      "direction": "left",
+      "frameCount": 27,
+      "frameRate": 30,
+      "canvas": { "width": 340, "height": 490 },
+      "sourceAnchor": { "x": 196, "y": 263 },
+      "runtimeScale": 0.62
+    },
+    "stonecrown_lord": {
+      "displayName": "岩冠领主",
+      "sourceCharacter": "法师/铁扇公主",
+      "sourceAction": "03_法师_铁扇公主/普攻_远程扇击/PNG帧序列/left",
+      "runtimePath": "stonecrown_lord/left",
+      "action": "basic_attack",
+      "direction": "left",
+      "frameCount": 48,
+      "frameRate": 30,
+      "canvas": { "width": 379, "height": 248 },
+      "sourceAnchor": { "x": 145, "y": 154 },
+      "runtimeScale": 0.86
+    }
+  }
+}
