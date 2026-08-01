@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="一名像素战士从营地出发，挑战首领、获得装备并再次变强。"
+    />
+    <title>篝火营地 · 首领试炼原型</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="core.js" defer></script>
+    <script src="data.js" defer></script>
+    <script src="inventory.js" defer></script>
+    <script src="state.js" defer></script>
+    <script src="world.js" defer></script>
+    <script src="combat.js" defer></script>
+    <script src="save.js" defer></script>
+    <script src="render.js" defer></script>
+    <script src="ui.js" defer></script>
+    <script src="game.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="game-header">
+        <div class="game-header-main">
+          <div>
+            <p class="eyebrow">CAMPFIRE TRIALS</p>
+            <h1>篝火营地</h1>
+          </div>
+
+          <div class="status-cluster" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="statusText">战士正在营地巡游</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="game-layout" aria-label="营地与首领试炼演示">
+        <section class="game-card" aria-label="等距游戏场景">
+          <canvas id="gameCanvas" width="960" height="620">
+            当前浏览器不支持 Canvas，无法显示游戏画面。
+          </canvas>
+
+          <div class="scene-card" aria-live="polite">
+            <span id="sceneLabel">营地</span>
+          </div>
+
+          <div id="bossHud" class="boss-hud" hidden>
+            <div class="boss-hud-copy">
+              <strong id="bossName">灰岩守门者</strong>
+              <span id="bossHealthText">生命 0 / 0</span>
+            </div>
+            <div class="health-track" aria-hidden="true">
+              <span id="bossHealthBar"></span>
+            </div>
+          </div>
+
+          <div class="control-bar">
+            <div class="main-actions">
+              <label class="difficulty-control">
+                <span>副本难度</span>
+                <select id="difficultySelect" aria-label="选择副本难度"></select>
+              </label>
+              <button id="challengeButton" class="challenge-button" type="button">
+                攻略难度 1
+              </button>
+            </div>
+
+            <fieldset class="speed-control">
+              <legend>移动与战斗速度</legend>
+              <button class="is-active" type="button" data-speed="1">1×</button>
+              <button type="button" data-speed="2">2×</button>
+            </fieldset>
+          </div>
+        </section>
+
+        <aside id="prepPanel" class="prep-panel" aria-label="角色整备栏">
+          <button
+            id="prepToggle"
+            class="prep-summary"
+            type="button"
+            aria-expanded="false"
+            aria-controls="prepContent"
+          >
+            <span class="prep-summary-copy">
+              <small>战士整备</small>
+              <strong id="prepSummaryStatus">蕾琳 · 生命 100/100 · 攻击 12</strong>
+            </span>
+            <span id="prepSummaryLootCount" class="pending-badge">待处理 0</span>
+            <span class="prep-chevron" aria-hidden="true">⌄</span>
+          </button>
+
+          <div id="prepContent" class="prep-content">
+            <div class="prep-heading">
+              <div>
+                <span>CHARACTER LOADOUT</span>
+                <strong>战士整备栏</strong>
+              </div>
+              <span id="pendingLootBadge" class="pending-badge">待处理 0</span>
+            </div>
+
+            <section
+              id="lootPanel"
+              class="loot-panel"
+              aria-labelledby="lootTitle"
+              aria-live="polite"
+              hidden
+            >
+              <p id="lootKicker" class="loot-kicker">第 1 / 3 名首领战利品</p>
+              <h2 id="lootTitle">获得装备</h2>
+              <div id="lootQueue" class="loot-queue" aria-label="待处理战利品"></div>
+              <div id="lootIcon" class="loot-icon" aria-hidden="true">◆</div>
+              <strong id="lootName">装备名称</strong>
+              <span id="lootMeta">普通 · 物品等级 1</span>
+              <p id="lootStats">属性</p>
+              <p id="lootCompare" class="loot-compare">与当前装备比较</p>
+              <div class="loot-actions">
+                <button id="equipLootButton" class="primary-button" type="button">
+                  立即装备
+                </button>
+                <button id="discardLootButton" class="danger-button" type="button">
+                  丢弃这件
+                </button>
+                <button id="keepGearButton" class="secondary-button" type="button">
+                  稍后处理
+                </button>
+              </div>
+            </section>
+
+            <section class="hero-panel" aria-label="战士状态与装备">
+              <div class="hero-heading">
+                <div>
+                  <span class="hero-role">战士</span>
+                  <strong>蕾琳</strong>
+                </div>
+                <span id="victoryCount">副本 0 · 首领 0</span>
+              </div>
+
+              <div class="stat-grid">
+                <span><small>生命</small><strong id="heroHpStat">100</strong></span>
+                <span><small>攻击</small><strong id="heroAttackStat">12</strong></span>
+                <span><small>防御</small><strong id="heroDefenseStat">5</strong></span>
+                <span><small>攻速</small><strong id="heroSpeedStat">1.0s</strong></span>
+              </div>
+
+              <div class="equipment-list">
+                <p>当前装备</p>
+                <div class="equipment-slot">
+                  <span class="equipment-slot-label">武器</span>
+                  <span id="weaponSlot" class="equipment-value">旧营地短剑</span>
+                </div>
+                <div class="equipment-slot">
+                  <span class="equipment-slot-label">护甲</span>
+                  <span id="armorSlot" class="equipment-value">旧皮甲</span>
+                </div>
+                <div class="equipment-slot">
+                  <span class="equipment-slot-label">饰品</span>
+                  <span id="charmSlot" class="equipment-value">空</span>
+                </div>
+              </div>
+
+              <div class="backpack-list">
+                <div class="backpack-heading">
+                  <p>背包</p>
+                  <div>
+                    <span id="inventoryCount">0 件</span>
+                    <button id="clearInventoryButton" type="button">清空</button>
+                  </div>
+                </div>
+                <div id="inventoryItems" class="inventory-items">
+                  <span class="inventory-empty">暂无待处理装备</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </aside>
+      </section>
+
+    </main>
+  </body>
+</html>

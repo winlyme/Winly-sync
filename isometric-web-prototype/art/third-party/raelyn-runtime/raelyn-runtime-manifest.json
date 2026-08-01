@@ -1,0 +1,46 @@
+{
+  "taskId": "T-20260801-002",
+  "formalizedByTaskId": "T-20260802-006",
+  "asset": "Raelyn / 蕾琳",
+  "characterId": "warrior_raelyn",
+  "displayName": "蕾琳",
+  "purpose": "Provide the official runtime frames for Raelyn, the project's sole playable character, without changing stats, equipment, gameplay, combat resolution, or save structure.",
+  "source": {
+    "confirmedByUser": true,
+    "path": "C:/Users/winly/Documents/Codex/2026-08-01/e-steamlibrary-steamapps-common-kingdom-rush/outputs/Raelyn_蕾琳_战斗动画演示/",
+    "atlas": "_assets/kr5-desktop/images/ipad/go_hero_raelyn-1.png",
+    "animationTable": "kr5/data/animations/all/game_animations_new.lua",
+    "note": "Third-party original game material; retained here under the user's explicit project authorization for the official Raelyn character runtime."
+  },
+  "sourceSpec": {
+    "frameCanvas": [192, 156],
+    "framesPerSecond": 30,
+    "format": "RGBA PNG",
+    "directions": ["left", "right"],
+    "alignment": "Original full-frame canvas and per-frame offsets are preserved."
+  },
+  "selectedActions": {
+    "idle": { "framesPerDirection": 23, "looping": true },
+    "walk": { "framesPerDirection": 24, "looping": true },
+    "melee_attack": { "framesPerDirection": 38, "looping": false },
+    "death": { "framesPerDirection": 44, "looping": false }
+  },
+  "runtime": {
+    "pngCount": 258,
+    "pathPattern": "{action}/{direction}/frame_{0001..}.png",
+    "directionMapping": "render.js facingRight selects right; otherwise left.",
+    "sourceAnchor": [96, 81],
+    "scale": 1.55,
+    "visibleHeightTarget": "approximately 64px for standing and walking frames",
+    "playbackFramesPerSecond": {
+      "idle": 30,
+      "walk": 30,
+      "melee_attack": 40,
+      "death": 36
+    },
+    "timingNote": "Attack and death are accelerated from the 30 FPS source timing so their complete controlled sequences fit the current 1.05s attack interval and 1.35s defeat hold.",
+    "speedMultiplier": "At 2x speed, the independent character animation clock advances at twice the 1x rate for idle, walk, melee_attack, and death.",
+    "shadowPolicy": "The Raelyn PNG branch adds no procedural character shadow; the generic procedural fallback retains its own ground shadow.",
+    "fallback": "If the requested PNG is unavailable, incomplete, failed, or has an unexpected canvas size, render.js draws a generic procedural warrior without a character-specific identity."
+  }
+}

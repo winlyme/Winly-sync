@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "revision": "T-20260717-011-R1",
+  "pixelSampling": "nearest-neighbor",
+  "alphaPolicy": "binary RGBA edges (0 or 255 alpha), no shadow or background",
+  "directionConvention": {
+    "north": "screen upper-right",
+    "east": "screen lower-right",
+    "south": "screen lower-left",
+    "west": "screen upper-left"
+  },
+  "assets": {
+    "graystoneKeeper": {
+      "file": "bosses/graystone_keeper/south_idle_00.png",
+      "canvasSize": [
+        112,
+        112
+      ],
+      "visibleHeight": 76,
+      "anchor": [
+        56,
+        98
+      ],
+      "direction": "south (screen lower-left)",
+      "frameCount": 1,
+      "suggestedFps": {
+        "idle": 4
+      }
+    },
+    "furnaceColossus": {
+      "file": "bosses/furnace_colossus/west_idle_00.png",
+      "canvasSize": [
+        160,
+        144
+      ],
+      "visibleHeight": 96,
+      "anchor": [
+        80,
+        126
+      ],
+      "direction": "west (screen upper-left)",
+      "frameCount": 1,
+      "suggestedFps": {
+        "idle": 4
+      },
+      "minimumSafeEdgePx": 4
+    },
+    "stonecrownLord": {
+      "file": "bosses/stonecrown_lord/south_idle_00.png",
+      "canvasSize": [
+        128,
+        128
+      ],
+      "visibleHeight": 86,
+      "anchor": [
+        64,
+        112
+      ],
+      "direction": "south (screen lower-left)",
+      "frameCount": 1,
+      "suggestedFps": {
+        "idle": 4
+      },
+      "effectLayers": {
+        "obsidianRing": "effects/stonecrown_obsidian_ring_idle_00.png",
+        "secretFire": "effects/stonecrown_secret_fire_idle_00.png",
+        "anchor": [
+          64,
+          112
+        ]
+      }
+    }
+  },
+  "preview": "boss-directions-r1-preview.png"
+}
