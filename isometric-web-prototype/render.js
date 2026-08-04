@@ -10,12 +10,13 @@
     const { state, party } = runtime;
     const { camp, dungeon } = worldData;
     const palette = Game.Data.palette;
-    const { TILE_WIDTH, TILE_HEIGHT, SCENES } = Game.Core;
+    const { TILE_WIDTH, TILE_HEIGHT, SCENES, PHASES, TRANSITION_ACTIONS } = Game.Core;
     const raelynActions = {
       idle: { frameCount: 23, frameRate: 30, looping: true },
       walk: { frameCount: 24, frameRate: 30, looping: true },
       melee_attack: { frameCount: 38, frameRate: 40, looping: false },
       death: { frameCount: 44, frameRate: 36, looping: false },
+      scene_transition: { frameCount: 24, frameRate: 30, looping: false },
     };
     const raelynFrames = loadRaelynFrames();
     const raelynMemberStates = new WeakMap();
@@ -24,38 +25,91 @@
     const RAELYN_ANCHOR_X = 96;
     const RAELYN_ANCHOR_Y = 81;
     const RAELYN_SCALE = 1.55;
-    const BOSS_ATTACK_FRAME_RATE = 30;
+    const BOSS_FRAME_RATE = 30;
     const BOSS_ATTACK_COMPLETION_MARGIN = 0.22;
     const bossSpriteDefinitions = Object.freeze({
       graystone_keeper: Object.freeze({
-        frameCount: 44,
-        frameWidth: 159,
-        frameHeight: 210,
-        anchorX: 58,
-        anchorY: 190,
         scale: 0.72,
+        actions: Object.freeze({
+          idle: Object.freeze({
+            frameCount: 24,
+            frameWidth: 151,
+            frameHeight: 142,
+            anchorX: 51,
+            anchorY: 130,
+          }),
+          attack: Object.freeze({
+            frameCount: 64,
+            frameWidth: 494,
+            frameHeight: 210,
+            anchorX: 393,
+            anchorY: 190,
+            runtimeAction: "attack_body",
+          }),
+        }),
+        projectile: Object.freeze({
+          runtimeAction: "attack_projectile",
+          frameCount: 37,
+          frameWidth: 64,
+          frameHeight: 64,
+          anchorX: 32,
+          anchorY: 32,
+          sourceStartFrame: 22,
+          sourceFlightEndFrame: 49,
+          sourceEndFrame: 58,
+          launchOffsetX: -30.6,
+          launchOffsetY: -66.96,
+          targetOffsetY: -44,
+          arcHeight: 20,
+        }),
       }),
       furnace_colossus: Object.freeze({
-        frameCount: 27,
-        frameWidth: 340,
-        frameHeight: 490,
-        anchorX: 196,
-        anchorY: 263,
         scale: 0.62,
+        visualOffsetY: -24,
+        groundShadow: Object.freeze({
+          offsetY: 5,
+          radiusX: 30,
+          radiusY: 9,
+        }),
+        actions: Object.freeze({
+          idle: Object.freeze({
+            frameCount: 19,
+            frameWidth: 340,
+            frameHeight: 490,
+            anchorX: 196,
+            anchorY: 263,
+          }),
+          attack: Object.freeze({
+            frameCount: 27,
+            frameWidth: 340,
+            frameHeight: 490,
+            anchorX: 196,
+            anchorY: 263,
+          }),
+        }),
       }),
       stonecrown_lord: Object.freeze({
-        frameCount: 48,
-        frameWidth: 379,
-        frameHeight: 248,
-        anchorX: 145,
-        anchorY: 154,
         scale: 0.86,
+        actions: Object.freeze({
+          idle: Object.freeze({
+            frameCount: 40,
+            frameWidth: 136,
+            frameHeight: 123,
+            anchorX: 66,
+            anchorY: 112,
+          }),
+          attack: Object.freeze({
+            frameCount: 48,
+            frameWidth: 379,
+            frameHeight: 248,
+            anchorX: 145,
+            anchorY: 154,
+          }),
+        }),
       }),
     });
     const bossFrames = loadBossFrames();
     const bossRenderStates = new WeakMap();
-    let characterAnimationTime = 0;
-    let previousVisualElapsedTime = state.visualElapsedTime;
 
     function loadRaelynFrames() {
       const actions = {};
@@ -89,25 +143,51 @@
     function loadBossFrames() {
       const frameGroups = {};
       Object.entries(bossSpriteDefinitions).forEach(([bossId, definition]) => {
-        frameGroups[bossId] = Array.from(
-          { length: definition.frameCount },
-          (_, index) => {
-            const frame = { image: new Image(), failed: false };
-            const frameNumber = String(index + 1).padStart(4, "0");
-            frame.image.decoding = "async";
-            frame.image.addEventListener(
-              "error",
-              () => {
-                frame.failed = true;
-              },
-              { once: true },
-            );
-            frame.image.src =
-              `art/third-party/boss-runtime/${bossId}/left/` +
-              `frame_${frameNumber}.png`;
-            return frame;
-          },
-        );
+        frameGroups[bossId] = {};
+        Object.entries(definition.actions).forEach(([action, actionDefinition]) => {
+          const runtimeAction = actionDefinition.runtimeAction || action;
+          frameGroups[bossId][action] = Array.from(
+            { length: actionDefinition.frameCount },
+            (_, index) => {
+              const frame = { image: new Image(), failed: false };
+              const frameNumber = String(index + 1).padStart(4, "0");
+              frame.image.decoding = "async";
+              frame.image.addEventListener(
+                "error",
+                () => {
+                  frame.failed = true;
+                },
+                { once: true },
+              );
+              frame.image.src =
+                `art/third-party/boss-runtime/${bossId}/${runtimeAction}/left/` +
+                `frame_${frameNumber}.png`;
+              return frame;
+            },
+          );
+        });
+        if (definition.projectile) {
+          const projectileDefinition = definition.projectile;
+          frameGroups[bossId].projectile = Array.from(
+            { length: projectileDefinition.frameCount },
+            (_, index) => {
+              const frame = { image: new Image(), failed: false };
+              const frameNumber = String(index + 1).padStart(4, "0");
+              frame.image.decoding = "async";
+              frame.image.addEventListener(
+                "error",
+                () => {
+                  frame.failed = true;
+                },
+                { once: true },
+              );
+              frame.image.src =
+                `art/third-party/boss-runtime/${bossId}/` +
+                `${projectileDefinition.runtimeAction}/left/frame_${frameNumber}.png`;
+              return frame;
+            },
+          );
+        }
       });
       return frameGroups;
     }
@@ -117,27 +197,52 @@
       return dungeon;
     }
 
-    function advanceCharacterAnimationClock() {
-      const visualDelta = Math.max(
-        0,
-        state.visualElapsedTime - previousVisualElapsedTime,
-      );
-      const animationSpeed = state.speedMultiplier === 2 ? 2 : 1;
-      characterAnimationTime += visualDelta * animationSpeed;
-      previousVisualElapsedTime = state.visualElapsedTime;
-    }
-
     function gridToScreen(x, y) {
       const point = Game.World.gridToScreen(activeScene().origin, x, y);
       if (state.scene === SCENES.DUNGEON) {
+        point.y += dungeonElevationAt(x, y);
         point.x += state.camera.x;
         point.y += state.camera.y;
       }
       return point;
     }
 
+    function dungeonTileAt(x, y) {
+      return dungeon.map.tiles?.[y]?.[x] || null;
+    }
+
+    function integerDungeonElevationAt(x, y) {
+      const tile = dungeonTileAt(x, y);
+      return tile?.exists && Number.isFinite(tile.elevation) ? tile.elevation : 0;
+    }
+
+    function dungeonElevationAt(x, y) {
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return 0;
+      if (Number.isInteger(x) && Number.isInteger(y)) {
+        return integerDungeonElevationAt(x, y);
+      }
+      const minimumX = Math.floor(x);
+      const maximumX = Math.ceil(x);
+      const minimumY = Math.floor(y);
+      const maximumY = Math.ceil(y);
+      const horizontalProgress = x - minimumX;
+      const verticalProgress = y - minimumY;
+      const top =
+        integerDungeonElevationAt(minimumX, minimumY) * (1 - horizontalProgress) +
+        integerDungeonElevationAt(maximumX, minimumY) * horizontalProgress;
+      const bottom =
+        integerDungeonElevationAt(minimumX, maximumY) * (1 - horizontalProgress) +
+        integerDungeonElevationAt(maximumX, maximumY) * horizontalProgress;
+      return top * (1 - verticalProgress) + bottom * verticalProgress;
+    }
+
+    function renderDepthAt(x, y, baseOffset) {
+      const elevationDepth =
+        state.scene === SCENES.DUNGEON ? dungeonElevationAt(x, y) / TILE_HEIGHT : 0;
+      return x + y + elevationDepth + baseOffset;
+    }
+
     function render() {
-      advanceCharacterAnimationClock();
       context.clearRect(0, 0, canvas.width, canvas.height);
       context.imageSmoothingEnabled = false;
       drawBackdrop();
@@ -150,25 +255,28 @@
         }
       }
       tiles
-        .sort((a, b) => a.x + a.y - (b.x + b.y) || a.x - b.x)
+        .sort(
+          (a, b) =>
+            renderDepthAt(a.x, a.y, 0) - renderDepthAt(b.x, b.y, 0) || a.x - b.x,
+        )
         .forEach(drawTile);
       if (state.scene === SCENES.CAMP) drawTargetMarker();
 
       const renderables = scene.props.map((prop) => ({
-        depth: prop.x + prop.y + 0.12,
+        depth: renderDepthAt(prop.x, prop.y, 0.12),
         draw: () => drawProp(prop),
       }));
       if (state.scene === SCENES.DUNGEON) {
         state.encounterBosses.filter((boss) => boss.alive).forEach((boss) => {
           renderables.push({
-            depth: boss.x + boss.y + 0.3,
+            depth: renderDepthAt(boss.x, boss.y, 0.3),
             draw: () => drawBoss(boss),
           });
         });
       }
       party.members.forEach((member) => {
         renderables.push({
-          depth: member.x + member.y + 0.35,
+          depth: renderDepthAt(member.x, member.y, 0.35),
           draw: () => drawWarrior(member),
         });
       });
@@ -213,6 +321,9 @@
       const bottom = { x: point.x, y: point.y + halfHeight };
       const left = { x: point.x - halfWidth, y: point.y };
       const isCamp = state.scene === SCENES.CAMP;
+      if (!isCamp) {
+        drawDungeonElevationRisers(tile, { top, right, bottom, left });
+      }
       context.fillStyle = isCamp ? palette.campSideLeft : palette.dungeonSideLeft;
       context.beginPath();
       context.moveTo(left.x, left.y);
@@ -248,6 +359,47 @@
       if (tile.type === "stone" && (tile.x * 3 + tile.y * 5) % 8 === 0) {
         drawStoneCrack(point.x, point.y, tile.variant);
       }
+    }
+
+    function drawDungeonElevationRisers(tile, corners) {
+      const elevation = Number(tile.elevation) || 0;
+      if (elevation <= 0) return;
+      const edges = [
+        { neighbor: dungeonTileAt(tile.x, tile.y - 1), start: corners.top, end: corners.right },
+        {
+          neighbor: dungeonTileAt(tile.x + 1, tile.y),
+          start: corners.right,
+          end: corners.bottom,
+        },
+        {
+          neighbor: dungeonTileAt(tile.x, tile.y + 1),
+          start: corners.bottom,
+          end: corners.left,
+        },
+        { neighbor: dungeonTileAt(tile.x - 1, tile.y), start: corners.left, end: corners.top },
+      ];
+      context.save();
+      edges.forEach(({ neighbor, start, end }, index) => {
+        if (!neighbor?.exists) return;
+        const difference = elevation - (Number(neighbor.elevation) || 0);
+        if (difference <= 0) return;
+        context.fillStyle =
+          index % 2 === 0 ? "rgba(60, 39, 48, 0.94)" : "rgba(45, 31, 39, 0.96)";
+        context.beginPath();
+        context.moveTo(start.x, start.y - difference);
+        context.lineTo(end.x, end.y - difference);
+        context.lineTo(end.x, end.y);
+        context.lineTo(start.x, start.y);
+        context.closePath();
+        context.fill();
+        context.strokeStyle = "rgba(151, 91, 98, 0.52)";
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(start.x, start.y - difference);
+        context.lineTo(end.x, end.y - difference);
+        context.stroke();
+      });
+      context.restore();
     }
 
     function tileExists(x, y) {
@@ -302,6 +454,15 @@
         context.lineTo(point.x + 18, point.y);
         context.stroke();
       }
+      if (tile.type === "descendingStairs") {
+        drawDescendingStairDetail(tile, point);
+      }
+      if (tile.type === "sunken" && stableSeed % 3 === 0) {
+        context.strokeStyle = "rgba(184, 91, 91, 0.26)";
+        context.beginPath();
+        context.ellipse(point.x, point.y, 10, 4, 0, 0, Math.PI * 2);
+        context.stroke();
+      }
       if (
         tile.zone === "keeper_hall" ||
         tile.zone === "east_round_hall" ||
@@ -321,6 +482,29 @@
         }
       }
       context.restore();
+    }
+
+    function drawDescendingStairDetail(tile, point) {
+      const center = dungeon.map.heightModel?.center || { x: 37.5, y: 22.5 };
+      const horizontalDistance = tile.x - center.x;
+      const verticalDistance = tile.y - center.y;
+      context.strokeStyle = "rgba(42, 25, 32, 0.66)";
+      context.lineWidth = 1;
+      context.beginPath();
+      if (Math.abs(horizontalDistance) >= Math.abs(verticalDistance)) {
+        const slope = horizontalDistance >= 0 ? 1 : -1;
+        [-4, 0, 4].forEach((offset) => {
+          context.moveTo(point.x - 8, point.y + offset - slope * 3);
+          context.lineTo(point.x + 8, point.y + offset + slope * 3);
+        });
+      } else {
+        const slope = verticalDistance >= 0 ? 1 : -1;
+        [-8, 0, 8].forEach((offset) => {
+          context.moveTo(point.x + offset - slope * 5, point.y - 3);
+          context.lineTo(point.x + offset + slope * 5, point.y + 3);
+        });
+      }
+      context.stroke();
     }
 
     function drawDungeonBoundaryEdges(tile, corners) {
@@ -365,6 +549,14 @@
       if (tile.type === "stairs") {
         return tile.variant <= 1 ? palette.stairsA : palette.stairsB;
       }
+      if (tile.type === "sunken") {
+        return tile.variant <= 1 ? palette.sunkenA : palette.sunkenB;
+      }
+      if (tile.type === "descendingStairs") {
+        return tile.variant <= 1
+          ? palette.descendingStairsA
+          : palette.descendingStairsB;
+      }
       return tile.variant === 0 ? palette.grassA : palette.grassB;
     }
 
@@ -396,7 +588,7 @@
       const member = party.members[0];
       if (!member.target) return;
       const point = gridToScreen(member.target.x, member.target.y);
-      const pulse = 0.64 + Math.sin(state.elapsedTime * 4) * 0.16;
+      const pulse = 0.64 + Math.sin(state.visualElapsedTime * 4) * 0.16;
       context.save();
       context.globalAlpha = pulse;
       context.strokeStyle = palette.target;
@@ -441,6 +633,10 @@
         obsidianPedestal: drawObsidianPedestal,
         arcaneMark: drawArcaneMark,
         brokenRing: drawBrokenRing,
+        lowWall: drawLowWall,
+        ironFence: drawIronFence,
+        archeryTarget: drawArcheryTarget,
+        routeDebris: drawRouteDebris,
       };
       drawers[prop.type]?.(point.x, point.y, prop.scale || 1, prop);
     }
@@ -539,7 +735,7 @@
     }
 
     function drawCampfire(x, y, scale) {
-      const flicker = Math.sin(state.elapsedTime * 12) * 2;
+      const flicker = Math.sin(state.visualElapsedTime * 12) * 2;
       context.save();
       context.translate(Math.round(x), Math.round(y));
       context.scale(scale, scale);
@@ -585,6 +781,78 @@
       context.restore();
     }
 
+    function drawLowWall(x, y, scale, prop) {
+      context.save();
+      context.translate(Math.round(x), Math.round(y));
+      context.scale(scale, scale);
+      context.fillStyle = "rgba(13, 8, 12, 0.3)";
+      context.fillRect(-23, -2, 46, 6);
+      context.fillStyle = "#4d3f46";
+      context.beginPath();
+      context.moveTo(-24, -9);
+      context.lineTo(0, 1);
+      context.lineTo(24, -9);
+      context.lineTo(24, -20);
+      context.lineTo(0, -10);
+      context.lineTo(-24, -20);
+      context.closePath();
+      context.fill();
+      context.fillStyle = "#79616a";
+      context.beginPath();
+      context.moveTo(-24, -20);
+      context.lineTo(0, -30);
+      context.lineTo(24, -20);
+      context.lineTo(0, -10);
+      context.closePath();
+      context.fill();
+      context.strokeStyle = "#3b3036";
+      context.lineWidth = 2;
+      context.beginPath();
+      const seam = (prop.variant || 0) % 2 === 0 ? -8 : 8;
+      context.moveTo(seam, -26);
+      context.lineTo(seam + 7, -18);
+      context.stroke();
+      context.restore();
+    }
+
+    function drawIronFence(x, y, scale, prop) {
+      context.save();
+      context.translate(Math.round(x), Math.round(y));
+      context.scale(scale, scale);
+      context.fillStyle = "rgba(9, 6, 9, 0.3)";
+      context.fillRect(-22, -1, 44, 5);
+      const mirrored = (prop.variant || 0) % 2 === 1;
+      context.strokeStyle = "#27272e";
+      context.lineWidth = 5;
+      context.beginPath();
+      context.moveTo(-19, -2);
+      context.lineTo(-19, -34);
+      context.moveTo(0, -7);
+      context.lineTo(0, -39);
+      context.moveTo(19, -2);
+      context.lineTo(19, -34);
+      context.stroke();
+      context.strokeStyle = "#6f6871";
+      context.lineWidth = 3;
+      context.beginPath();
+      context.moveTo(-21, -25);
+      context.lineTo(21, -19);
+      context.moveTo(-21, -14);
+      context.lineTo(21, -8);
+      context.stroke();
+      context.fillStyle = "#9b7a79";
+      [-19, 0, 19].forEach((postX) => {
+        const pointOffset = mirrored && postX === 0 ? 2 : 0;
+        context.beginPath();
+        context.moveTo(postX - 4, -34 - pointOffset);
+        context.lineTo(postX, -43 - pointOffset);
+        context.lineTo(postX + 4, -34 - pointOffset);
+        context.closePath();
+        context.fill();
+      });
+      context.restore();
+    }
+
     function drawStoneDoorway(x, y, scale) {
       context.save();
       context.translate(Math.round(x), Math.round(y));
@@ -626,7 +894,7 @@
     }
 
     function drawBrazier(x, y, scale) {
-      const flicker = Math.sin(state.elapsedTime * 13 + x) * 2;
+      const flicker = Math.sin(state.visualElapsedTime * 13 + x) * 2;
       context.save();
       context.translate(Math.round(x), Math.round(y));
       context.scale(scale, scale);
@@ -664,6 +932,27 @@
       context.fillRect(-10, -48, 20, 18);
       context.fillStyle = "#c09962";
       context.fillRect(-6, -44, 5, 5);
+      context.restore();
+    }
+
+    function drawArcheryTarget(x, y, scale) {
+      context.save();
+      context.translate(Math.round(x), Math.round(y));
+      context.scale(scale, scale);
+      drawGroundShadow(0, 2, 15, 5);
+      context.fillStyle = "#4b3329";
+      context.fillRect(-3, -39, 6, 40);
+      context.fillRect(-13, -2, 26, 4);
+      context.fillStyle = "#d8c49a";
+      context.beginPath();
+      context.ellipse(0, -38, 15, 11, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#9c3d45";
+      context.beginPath();
+      context.ellipse(0, -38, 9, 7, 0, 0, Math.PI * 2);
+      context.fill();
+      context.fillStyle = "#e8c766";
+      context.fillRect(-2, -40, 4, 4);
       context.restore();
     }
 
@@ -815,6 +1104,33 @@
       context.restore();
     }
 
+    function drawRouteDebris(x, y, scale, prop) {
+      context.save();
+      context.translate(Math.round(x), Math.round(y));
+      context.scale(scale, scale);
+      drawGroundShadow(0, 3, 21, 7);
+      const shifted = (prop.variant || 0) % 2 === 0 ? -4 : 4;
+      context.fillStyle = "#5e4535";
+      context.fillRect(-20 + shifted, -20, 18, 21);
+      context.fillStyle = "#8b6547";
+      context.fillRect(-16 + shifted, -16, 10, 3);
+      context.fillStyle = "#55545c";
+      context.beginPath();
+      context.moveTo(-2, 0);
+      context.lineTo(6, -17);
+      context.lineTo(17, -9);
+      context.lineTo(21, 0);
+      context.closePath();
+      context.fill();
+      context.strokeStyle = "#3b2924";
+      context.lineWidth = 4;
+      context.beginPath();
+      context.moveTo(-18, -25);
+      context.lineTo(19, -3);
+      context.stroke();
+      context.restore();
+    }
+
     function drawOldSign(x, y, scale) {
       context.save();
       context.translate(Math.round(x), Math.round(y));
@@ -889,7 +1205,7 @@
     }
 
     function drawForgeBase(x, y, scale) {
-      const flicker = 0.45 + Math.sin(state.elapsedTime * 8 + x) * 0.12;
+      const flicker = 0.45 + Math.sin(state.visualElapsedTime * 8 + x) * 0.12;
       context.save();
       context.translate(Math.round(x), Math.round(y));
       context.scale(scale, scale);
@@ -968,7 +1284,7 @@
     }
 
     function drawCandleStand(x, y, scale) {
-      const flicker = Math.sin(state.elapsedTime * 11 + x * 0.2) * 2;
+      const flicker = Math.sin(state.visualElapsedTime * 11 + x * 0.2) * 2;
       context.save();
       context.translate(Math.round(x), Math.round(y));
       context.scale(scale, scale);
@@ -1011,7 +1327,7 @@
     }
 
     function drawArcaneMark(x, y, scale) {
-      const pulse = 0.26 + Math.sin(state.elapsedTime * 3) * 0.08;
+      const pulse = 0.26 + Math.sin(state.visualElapsedTime * 3) * 0.08;
       context.save();
       context.translate(Math.round(x), Math.round(y));
       context.scale(scale, scale);
@@ -1050,7 +1366,7 @@
           lastAttackPulse: 0,
           lastAttackTimer: member.attackTimer,
           attackStartedAt: null,
-          deathStartedAt: member.alive ? null : characterAnimationTime,
+          deathStartedAt: member.alive ? null : state.visualElapsedTime,
         };
         raelynMemberStates.set(member, renderState);
       }
@@ -1063,7 +1379,7 @@
         renderState.deathStartedAt = null;
         renderState.attackStartedAt = null;
       } else if (!member.alive && renderState.lastAlive) {
-        renderState.deathStartedAt = characterAnimationTime;
+        renderState.deathStartedAt = state.visualElapsedTime;
         renderState.attackStartedAt = null;
       }
 
@@ -1075,20 +1391,30 @@
         (member.attackPulse >= 0.16 || attackTimerJumped) &&
         (member.attackPulse > renderState.lastAttackPulse || attackTimerJumped);
       if (attackTriggered && renderState.attackStartedAt === null) {
-        renderState.attackStartedAt = characterAnimationTime;
+        renderState.attackStartedAt = state.visualElapsedTime;
       }
 
       let action = "idle";
-      let actionElapsed = characterAnimationTime;
-      if (!member.alive) {
+      let actionElapsed = state.visualElapsedTime;
+      const transitionAction = state.transition?.action;
+      const isSceneTransition =
+        state.phase === PHASES.TRANSITION &&
+        (transitionAction === TRANSITION_ACTIONS.LEVEL_UP ||
+          transitionAction === TRANSITION_ACTIONS.RESPAWN);
+      if (isSceneTransition) {
+        action = "scene_transition";
+        actionElapsed = state.transition.elapsed;
+        renderState.attackStartedAt = null;
+        renderState.deathStartedAt = null;
+      } else if (!member.alive) {
         action = "death";
         if (renderState.deathStartedAt === null) {
-          renderState.deathStartedAt = characterAnimationTime;
+          renderState.deathStartedAt = state.visualElapsedTime;
         }
-        actionElapsed = characterAnimationTime - renderState.deathStartedAt;
+        actionElapsed = state.visualElapsedTime - renderState.deathStartedAt;
       } else if (renderState.attackStartedAt !== null) {
         const attackElapsed =
-          characterAnimationTime - renderState.attackStartedAt;
+          state.visualElapsedTime - renderState.attackStartedAt;
         const attackDefinition = raelynActions.melee_attack;
         const attackDuration =
           attackDefinition.frameCount / attackDefinition.frameRate;
@@ -1144,11 +1470,11 @@
 
     function drawFallbackWarrior(member, point, facingRight) {
       const walking = member.moving;
-      const visualWalkClock = characterAnimationTime * 9;
+      const visualWalkClock = state.visualElapsedTime * 9;
       const step = walking ? Math.round(Math.sin(visualWalkClock)) : 0;
       const bob = walking
         ? Math.abs(Math.sin(visualWalkClock)) * 2
-        : Math.sin(characterAnimationTime * 2) * 0.5;
+        : Math.sin(state.visualElapsedTime * 2) * 0.5;
       const attackOffset = member.attackPulse > 0 ? 3 : 0;
       context.save();
       context.translate(
@@ -1194,6 +1520,9 @@
           lastAttackPulse: boss.attackPulse,
           lastAttackTimer: boss.attackTimer,
           attackStartedAt: null,
+          idleStartedAt: state.visualElapsedTime,
+          lastTargetSequence: 0,
+          projectileTarget: null,
         };
         bossRenderStates.set(boss, renderState);
       }
@@ -1202,6 +1531,8 @@
 
     function selectBossFrame(boss, definition) {
       const renderState = getBossRenderState(boss);
+      const attackDefinition = definition.actions.attack;
+      const idleDefinition = definition.actions.idle;
       const attackTimerJumped =
         boss.attackTimer > renderState.lastAttackTimer + 0.25;
       const attackTriggered =
@@ -1209,48 +1540,97 @@
         boss.attackPulse > 0 &&
         (boss.attackPulse > renderState.lastAttackPulse || attackTimerJumped);
       if (attackTriggered && renderState.attackStartedAt === null) {
-        renderState.attackStartedAt = state.elapsedTime;
+        renderState.attackStartedAt = state.visualElapsedTime;
+        const target = boss.visualAttackTarget;
+        if (
+          boss.id === "graystone_keeper" &&
+          Number.isFinite(target?.x) &&
+          Number.isFinite(target?.y) &&
+          target.sequence > renderState.lastTargetSequence
+        ) {
+          renderState.lastTargetSequence = target.sequence;
+          renderState.projectileTarget = { x: target.x, y: target.y };
+        } else {
+          renderState.projectileTarget = null;
+        }
       }
 
+      let action = "idle";
       let frameIndex = 0;
+      let sourceFramePosition = null;
       if (renderState.attackStartedAt !== null) {
         const nominalDuration =
-          definition.frameCount / BOSS_ATTACK_FRAME_RATE;
+          attackDefinition.frameCount / BOSS_FRAME_RATE;
         const availableDuration = Math.max(
-          1 / BOSS_ATTACK_FRAME_RATE,
+          1 / BOSS_FRAME_RATE,
           boss.attackInterval - BOSS_ATTACK_COMPLETION_MARGIN,
         );
         const attackDuration = Math.min(nominalDuration, availableDuration);
         const attackElapsed = Math.max(
           0,
-          state.elapsedTime - renderState.attackStartedAt,
+          state.visualElapsedTime - renderState.attackStartedAt,
         );
         if (attackElapsed < attackDuration) {
-          const playbackRate = definition.frameCount / attackDuration;
+          action = "attack";
+          const playbackRate = attackDefinition.frameCount / attackDuration;
+          sourceFramePosition = attackElapsed * playbackRate;
           frameIndex = Math.min(
-            Math.floor(attackElapsed * playbackRate),
-            definition.frameCount - 1,
+            Math.floor(sourceFramePosition),
+            attackDefinition.frameCount - 1,
           );
         } else {
           renderState.attackStartedAt = null;
+          renderState.idleStartedAt = state.visualElapsedTime;
+          renderState.projectileTarget = null;
         }
+      }
+
+      if (action === "idle") {
+        const idleElapsed = Math.max(
+          0,
+          state.visualElapsedTime - renderState.idleStartedAt,
+        );
+        frameIndex =
+          Math.floor(idleElapsed * BOSS_FRAME_RATE) % idleDefinition.frameCount;
       }
 
       renderState.lastAttackPulse = boss.attackPulse;
       renderState.lastAttackTimer = boss.attackTimer;
-      return frameIndex;
+      return {
+        action,
+        frameIndex,
+        sourceFramePosition,
+        projectileTarget: renderState.projectileTarget,
+      };
     }
 
     function bossFrameGroupReady(bossId, definition) {
-      const frames = bossFrames[bossId];
+      const frameGroups = bossFrames[bossId];
+      const actionsReady = Object.entries(definition.actions).every(
+        ([action, actionDefinition]) => {
+          const frames = frameGroups?.[action];
+          return (
+            frames?.length === actionDefinition.frameCount &&
+            frames.every(
+              (frame) =>
+                !frame.failed &&
+                frame.image.complete &&
+                frame.image.naturalWidth === actionDefinition.frameWidth &&
+                frame.image.naturalHeight === actionDefinition.frameHeight,
+            )
+          );
+        },
+      );
+      if (!actionsReady || !definition.projectile) return actionsReady;
+      const projectileFrames = frameGroups?.projectile;
       return (
-        frames?.length === definition.frameCount &&
-        frames.every(
+        projectileFrames?.length === definition.projectile.frameCount &&
+        projectileFrames.every(
           (frame) =>
             !frame.failed &&
             frame.image.complete &&
-            frame.image.naturalWidth === definition.frameWidth &&
-            frame.image.naturalHeight === definition.frameHeight,
+            frame.image.naturalWidth === definition.projectile.frameWidth &&
+            frame.image.naturalHeight === definition.projectile.frameHeight,
         )
       );
     }
@@ -1261,25 +1641,103 @@
         return false;
       }
 
-      const frameIndex = selectBossFrame(boss, definition);
-      const frame = bossFrames[boss.id][frameIndex];
+      const selection = selectBossFrame(boss, definition);
+      const actionDefinition = definition.actions[selection.action];
+      const frame = bossFrames[boss.id][selection.action][selection.frameIndex];
+      if (definition.groundShadow) {
+        drawGroundShadow(
+          point.x,
+          point.y + definition.groundShadow.offsetY,
+          definition.groundShadow.radiusX,
+          definition.groundShadow.radiusY,
+        );
+      }
       context.save();
-      context.translate(Math.round(point.x), Math.round(point.y));
+      context.translate(
+        Math.round(point.x),
+        Math.round(point.y + (definition.visualOffsetY || 0)),
+      );
       context.filter =
         boss.hitFlash > 0 ? "brightness(1.75) saturate(0.35)" : "none";
       context.drawImage(
         frame.image,
-        -definition.anchorX * definition.scale,
-        -definition.anchorY * definition.scale,
-        definition.frameWidth * definition.scale,
-        definition.frameHeight * definition.scale,
+        -actionDefinition.anchorX * definition.scale,
+        -actionDefinition.anchorY * definition.scale,
+        actionDefinition.frameWidth * definition.scale,
+        actionDefinition.frameHeight * definition.scale,
       );
       context.restore();
+      drawGraystoneProjectile(boss, point, definition, selection);
       return true;
+    }
+
+    function drawGraystoneProjectile(boss, point, definition, selection) {
+      const projectileDefinition = definition.projectile;
+      const sourceFramePosition = selection.sourceFramePosition;
+      const target = selection.projectileTarget;
+      if (
+        boss.id !== "graystone_keeper" ||
+        selection.action !== "attack" ||
+        !projectileDefinition ||
+        !Number.isFinite(sourceFramePosition) ||
+        !Number.isFinite(target?.x) ||
+        !Number.isFinite(target?.y) ||
+        sourceFramePosition < projectileDefinition.sourceStartFrame ||
+        sourceFramePosition >= projectileDefinition.sourceEndFrame + 1
+      ) {
+        return;
+      }
+
+      const projectileIndex = Math.min(
+        Math.floor(sourceFramePosition) - projectileDefinition.sourceStartFrame,
+        projectileDefinition.frameCount - 1,
+      );
+      const projectileFrame = bossFrames[boss.id].projectile[projectileIndex];
+      const targetPoint = gridToScreen(target.x, target.y);
+      const start = {
+        x: point.x + projectileDefinition.launchOffsetX,
+        y: point.y + projectileDefinition.launchOffsetY,
+      };
+      const end = {
+        x: targetPoint.x,
+        y: targetPoint.y + projectileDefinition.targetOffsetY,
+      };
+      const flightProgress = Math.max(
+        0,
+        Math.min(
+          1,
+          (sourceFramePosition - projectileDefinition.sourceStartFrame) /
+            (projectileDefinition.sourceFlightEndFrame -
+              projectileDefinition.sourceStartFrame),
+        ),
+      );
+      const arc =
+        Math.sin(flightProgress * Math.PI) * projectileDefinition.arcHeight;
+      const projectilePoint = {
+        x: start.x + (end.x - start.x) * flightProgress,
+        y: start.y + (end.y - start.y) * flightProgress - arc,
+      };
+
+      context.save();
+      context.translate(
+        Math.round(projectilePoint.x),
+        Math.round(projectilePoint.y),
+      );
+      context.filter =
+        boss.hitFlash > 0 ? "brightness(1.75) saturate(0.35)" : "none";
+      context.drawImage(
+        projectileFrame.image,
+        -projectileDefinition.anchorX * definition.scale,
+        -projectileDefinition.anchorY * definition.scale,
+        projectileDefinition.frameWidth * definition.scale,
+        projectileDefinition.frameHeight * definition.scale,
+      );
+      context.restore();
     }
 
     function drawFallbackBoss(boss, point) {
       const collapsed = !boss.alive;
+      const visualOffsetY = boss.id === "furnace_colossus" ? -24 : 0;
       const direction = boss.direction || { x: 0, y: 1 };
       const screenDirection = {
         x: Math.sign(direction.x - direction.y),
@@ -1289,6 +1747,7 @@
       context.translate(Math.round(point.x), Math.round(point.y + (collapsed ? 12 : 0)));
       context.globalAlpha = collapsed ? 0.66 : 1;
       drawGroundShadow(0, 5, 27, 9);
+      context.translate(0, visualOffsetY);
       context.fillStyle = "#3f3e46";
       context.fillRect(-18, -18, 13, 19);
       context.fillRect(5, -18, 13, 19);
@@ -1360,9 +1819,12 @@
       context.globalAlpha = isCamp ? 0.38 : 0.2;
       context.fillStyle = isCamp ? "#d6eb9e" : "#b79bd2";
       for (let index = 0; index < 7; index += 1) {
-        const travel = (state.elapsedTime * (7 + index) + index * 71) % 470;
+        const travel = (state.visualElapsedTime * (7 + index) + index * 71) % 470;
         const x = 260 + ((index * 97) % 470);
-        const y = 520 - travel * 0.63 + Math.sin(state.elapsedTime + index) * 8;
+        const y =
+          520 -
+          travel * 0.63 +
+          Math.sin(state.visualElapsedTime + index) * 8;
         context.fillRect(Math.round(x), Math.round(y), 2, 2);
       }
       context.restore();

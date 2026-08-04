@@ -1,47 +1,483 @@
 {
-  "version": 1,
-  "sourceRoot": "C:/Users/winly/Documents/Codex/2026-08-01/e-steamlibrary-steamapps-common-kingdom-rush/outputs/三Boss_普攻与技能动画/",
-  "framePattern": "frame_0001.png",
-  "format": "RGBA PNG",
-  "bosses": {
-    "graystone_keeper": {
-      "displayName": "灰岩守门者",
-      "sourceCharacter": "猎人/蜘蛛女王",
-      "sourceAction": "01_猎人_蜘蛛女王/普攻_远程/PNG帧序列/left",
-      "runtimePath": "graystone_keeper/left",
-      "action": "basic_attack",
-      "direction": "left",
-      "frameCount": 44,
-      "frameRate": 30,
-      "canvas": { "width": 159, "height": 210 },
-      "sourceAnchor": { "x": 58, "y": 190 },
-      "runtimeScale": 0.72
-    },
-    "furnace_colossus": {
-      "displayName": "炉心巨像",
-      "sourceCharacter": "战士/穆格伦",
-      "sourceAction": "02_战士_穆格伦/普攻_近战/PNG帧序列/left",
-      "runtimePath": "furnace_colossus/left",
-      "action": "basic_attack",
-      "direction": "left",
-      "frameCount": 27,
-      "frameRate": 30,
-      "canvas": { "width": 340, "height": 490 },
-      "sourceAnchor": { "x": 196, "y": 263 },
-      "runtimeScale": 0.62
-    },
-    "stonecrown_lord": {
-      "displayName": "岩冠领主",
-      "sourceCharacter": "法师/铁扇公主",
-      "sourceAction": "03_法师_铁扇公主/普攻_远程扇击/PNG帧序列/left",
-      "runtimePath": "stonecrown_lord/left",
-      "action": "basic_attack",
-      "direction": "left",
-      "frameCount": 48,
-      "frameRate": 30,
-      "canvas": { "width": 379, "height": 248 },
-      "sourceAnchor": { "x": 145, "y": 154 },
-      "runtimeScale": 0.86
-    }
-  }
+    "version":  4,
+    "taskId":  "T-20260802-007",
+    "visualAdjustmentTaskId":  "T-20260804-009",
+    "sourceRoot":  "C:/Users/winly/Documents/Codex/2026-08-01/e-steamlibrary-steamapps-common-kingdom-rush/outputs/三Boss_普攻与技能动画/",
+    "framePattern":  "frame_0001.png",
+    "format":  "RGBA PNG",
+    "direction":  "left",
+    "frameRate":  30,
+    "totalPngFiles":  323,
+    "totalPngBytes":  6131719,
+    "bosses":  {
+                   "graystone_keeper":  {
+                                            "displayName":  "灰岩守门者",
+                                            "sourceCharacter":  "猎人/蜘蛛女王",
+                                            "actions":  {
+                                                            "idle":  {
+                                                                         "sourceRelativePath":  "01_猎人_蜘蛛女王/待机/PNG帧序列/left",
+                                                                         "runtimePath":  "graystone_keeper/idle/left",
+                                                                         "action":  "idle",
+                                                                         "direction":  "left",
+                                                                         "frameCount":  24,
+                                                                         "frameRate":  30,
+                                                                         "canvas":  {
+                                                                                        "width":  151,
+                                                                                        "height":  142
+                                                                                    },
+                                                                         "sourceAnchor":  {
+                                                                                              "x":  51,
+                                                                                              "y":  130
+                                                                                          },
+                                                                         "runtimeScale":  0.72,
+                                                                         "totalBytes":  436038,
+                                                                         "sourceSha256":  {
+                                                                                              "frame_0001.png":  "be3668eb1e12ae6ae890ef5eed92de0884a4dc6ff4bebbc72f23819937cd3dd5",
+                                                                                              "frame_0002.png":  "966b8a0fb391cbc795211b0d3b987270486ec1d27191ccfbda257d3c65cb7406",
+                                                                                              "frame_0003.png":  "a88597eedffc2b5850ba2a1ffde523000c45aaad646a1fa4d58f21277a2e611a",
+                                                                                              "frame_0004.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0005.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0006.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0007.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0008.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0009.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0010.png":  "53623a2fdd879f87e517299619a46f9eff829b214f85e4b385bf032ba717d3c8",
+                                                                                              "frame_0011.png":  "a88597eedffc2b5850ba2a1ffde523000c45aaad646a1fa4d58f21277a2e611a",
+                                                                                              "frame_0012.png":  "966b8a0fb391cbc795211b0d3b987270486ec1d27191ccfbda257d3c65cb7406",
+                                                                                              "frame_0013.png":  "be3668eb1e12ae6ae890ef5eed92de0884a4dc6ff4bebbc72f23819937cd3dd5",
+                                                                                              "frame_0014.png":  "97611154a15f1286e073780d15b4e2ca638ebdb7e48e6ebfd7874cb513587343",
+                                                                                              "frame_0015.png":  "3e3745fc1fb189ecf3dfee38dd26f8c120894b7a640971e59333dbda43bb4362",
+                                                                                              "frame_0016.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0017.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0018.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0019.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0020.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0021.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0022.png":  "6de08e1736f5cb299dfb936be3fe66f8cf8a19d22512e6d1cf89902780b8e9d4",
+                                                                                              "frame_0023.png":  "3e3745fc1fb189ecf3dfee38dd26f8c120894b7a640971e59333dbda43bb4362",
+                                                                                              "frame_0024.png":  "97611154a15f1286e073780d15b4e2ca638ebdb7e48e6ebfd7874cb513587343"
+                                                                                          }
+                                                                     },
+                                                            "attack":  {
+                                                                           "sourceRelativePath":  "01_猎人_蜘蛛女王/普攻_远程/PNG帧序列/left",
+                                                                           "runtimePath":  "graystone_keeper/attack/left",
+                                                                           "action":  "basic_attack",
+                                                                           "direction":  "left",
+                                                                           "frameCount":  64,
+                                                                           "frameRate":  30,
+                                                                           "canvas":  {
+                                                                                          "width":  494,
+                                                                                          "height":  210
+                                                                                      },
+                                                                           "sourceAnchor":  {
+                                                                                                "x":  393,
+                                                                                                "y":  190
+                                                                                            },
+                                                                           "runtimeScale":  0.72,
+                                                                           "totalBytes":  1233798,
+                                                                           "sourceSha256":  {
+                                                                                                "frame_0001.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93",
+                                                                                                "frame_0002.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93",
+                                                                                                "frame_0003.png":  "4a7664b8eca14f7e1b24d6229d4fc62445bee9559a28394393a81a3c17eff155",
+                                                                                                "frame_0004.png":  "4a7664b8eca14f7e1b24d6229d4fc62445bee9559a28394393a81a3c17eff155",
+                                                                                                "frame_0005.png":  "ae697867feace1d65860e0246eedd7c84612991c3750999111d91b6b2131f401",
+                                                                                                "frame_0006.png":  "ae697867feace1d65860e0246eedd7c84612991c3750999111d91b6b2131f401",
+                                                                                                "frame_0007.png":  "2016a59133906ba975ba4cbf7dfc2b3692abd50cd52d5ff38d99e88bcbc3fff2",
+                                                                                                "frame_0008.png":  "2016a59133906ba975ba4cbf7dfc2b3692abd50cd52d5ff38d99e88bcbc3fff2",
+                                                                                                "frame_0009.png":  "2c0c9a94f1389b3938821d757d66ee2dc49f21fc7fd00f6ea01e280419a8e222",
+                                                                                                "frame_0010.png":  "2c0c9a94f1389b3938821d757d66ee2dc49f21fc7fd00f6ea01e280419a8e222",
+                                                                                                "frame_0011.png":  "4a83eb4ccfd650f7939f4ee7c1e46b57301e4e82f398f97ae1a5f806d98621cd",
+                                                                                                "frame_0012.png":  "4a83eb4ccfd650f7939f4ee7c1e46b57301e4e82f398f97ae1a5f806d98621cd",
+                                                                                                "frame_0013.png":  "5515eed2fa7d251ce166b7db4ca861be4b1bedfe3e9734432268dd7d0c08b01b",
+                                                                                                "frame_0014.png":  "5515eed2fa7d251ce166b7db4ca861be4b1bedfe3e9734432268dd7d0c08b01b",
+                                                                                                "frame_0015.png":  "b95752ba320dae872c8d95654afea29b4b56ee4d16881ca882c480f2494a7430",
+                                                                                                "frame_0016.png":  "b95752ba320dae872c8d95654afea29b4b56ee4d16881ca882c480f2494a7430",
+                                                                                                "frame_0017.png":  "93c36c6b856191cefa8e93e1391cda5587d3796707ece49bfef9d9c01366dc4c",
+                                                                                                "frame_0018.png":  "93c36c6b856191cefa8e93e1391cda5587d3796707ece49bfef9d9c01366dc4c",
+                                                                                                "frame_0019.png":  "ea54e45075ff316761ced9c2cbc3474fa1bd1209fa55ac2b19b2cde4529026cf",
+                                                                                                "frame_0020.png":  "ea54e45075ff316761ced9c2cbc3474fa1bd1209fa55ac2b19b2cde4529026cf",
+                                                                                                "frame_0021.png":  "606ef9fdca5743e49325eeb3ec2f4598b8619113df4bef087f32590a7def83df",
+                                                                                                "frame_0022.png":  "606ef9fdca5743e49325eeb3ec2f4598b8619113df4bef087f32590a7def83df",
+                                                                                                "frame_0023.png":  "34f4eaa05ac7a06a6946b7064857ec668e6de1ca3a7e2466177c6eb7b5f3eb94",
+                                                                                                "frame_0024.png":  "3908edfe363efd8282440dbcf1999e2ac6716f116447b4e78f5dbe4cada46c03",
+                                                                                                "frame_0025.png":  "00526f8d8371fc2889a9676742731a02c01968bb6dda09ea488dc3eab9e4e1df",
+                                                                                                "frame_0026.png":  "2da07f248cb4dd287eef438da0b8c0fbc04721d27b91ce7bd5e96afbaef3be29",
+                                                                                                "frame_0027.png":  "c1f31cc6d9dae2275f6fa61672932f8e9c7cfab07e20b4e6c2930d92b34d6f02",
+                                                                                                "frame_0028.png":  "3c48957bf8dd0569165eaaabc5ceb0a0363515421f6687787f912250e4847d64",
+                                                                                                "frame_0029.png":  "23e5724db0456ae356ac4e090f80889c1d07e83f515efffd566c0d429200aa9c",
+                                                                                                "frame_0030.png":  "f0b1a1c74e431c4da1c8a54cf9467fca86fe2ceb4b034ff42e81fe425cecbce4",
+                                                                                                "frame_0031.png":  "ac7d6d70c40ef3700f9b589f3cc5258f073e5466be1dc2703644443199435edb",
+                                                                                                "frame_0032.png":  "e416957361b5b39e90093d18f596766a1059a2649c8a2a303ccd6a577313ade9",
+                                                                                                "frame_0033.png":  "f29ee4d73351462212f3ce8eed37c32b26ac31ecb52b7930a5ae93bad2985730",
+                                                                                                "frame_0034.png":  "cc7ff5f2b5e4d377427c41741c9876adadef23d4f3f6e2075d787fd53819927c",
+                                                                                                "frame_0035.png":  "65e95d75ab643ac9bfdad6351e5e9998f79f1f30a23869b19da73343492144bf",
+                                                                                                "frame_0036.png":  "bac4cef80e712b2cb7abf115f617a555f94c45296f84cca9d86c7808dd7da4de",
+                                                                                                "frame_0037.png":  "58e7eb81e545dffc43061e268ac7849a0c63e8a465b032c7cd03d4466c457513",
+                                                                                                "frame_0038.png":  "47ed5cddafbcb5e66b58d47d92a9d12be7165eba99ac425fd79b14c1319fc07c",
+                                                                                                "frame_0039.png":  "d581019997c303cc7115f20f032708571ca320852e7ee961a7f2d34d15c019fa",
+                                                                                                "frame_0040.png":  "74d5d04d341f2bd72dcc084197deb3338b3225196442a8c4e97807fb4526286e",
+                                                                                                "frame_0041.png":  "58d2e34cd37f704c7f398bb018838371d19a96a1b4437afb62393708f5eaf43a",
+                                                                                                "frame_0042.png":  "994d0b81d6fb3da07941a6d363ca649f61159744662092f788e677be88e80a00",
+                                                                                                "frame_0043.png":  "301f15e47bc40dd2ae0bca96e0b2eb1148181dc6c382ce01968c449c400c0273",
+                                                                                                "frame_0044.png":  "0a94786c95f115fa5fafa314ff92e9cd39b04af9ae6198df11fba187efa4a33b",
+                                                                                                "frame_0045.png":  "b2690003af0042f0d23162a22661f3454cc0f258d7ffaf87e0cf8b36f4ba7fbe",
+                                                                                                "frame_0046.png":  "6cd1791c7a8ee4ffe77b89b0e9eee71b1ab2db5da425e7851546708cddd6af1f",
+                                                                                                "frame_0047.png":  "30bb2c03d782189966d086629038f7cab9292af0f238d8bb5721da94530b307b",
+                                                                                                "frame_0048.png":  "e462a23253dfdf2a22016943b86b9716976440668b4ec4f7cd7ff0d9f71f4a1c",
+                                                                                                "frame_0049.png":  "653920136bb02b2aed532bb2c593ed557d2fe355943f5a4a8d5919ec8640870e",
+                                                                                                "frame_0050.png":  "5128d7bfd96ae2c4f6b8ea67cc264742bc124800547785e7e38d01774d7ee3e0",
+                                                                                                "frame_0051.png":  "6c33817a2c58343bf7bce30232baa6dd8c958480961bef16d71da614e13aef56",
+                                                                                                "frame_0052.png":  "17a773ea4a24171041c4b3e749bed28155c22875adad90092f4f764b58823fd2",
+                                                                                                "frame_0053.png":  "f89bde7f5545bedf0894da555dc425cea955ccb50e0527044e3c526474da6ae3",
+                                                                                                "frame_0054.png":  "d2bf6cebdba023d60d00c4d0ddf015ecdc4c69978db4b1542f2778bb88bb7e31",
+                                                                                                "frame_0055.png":  "3d5f4b62fd98a9e1d151c79bce5786763bf023841d9558860fbf7c6eb22e9e82",
+                                                                                                "frame_0056.png":  "437bbc6590359f0313e2c85f98297ee9cc780f7a9ef55833fc91e1b0c24ffa63",
+                                                                                                "frame_0057.png":  "7ee701863d20626103840b9e414d30d243239b71c3094112cbb8a9e7bd13626d",
+                                                                                                "frame_0058.png":  "c5dfdaa284c70b46447798809a7bf8bf4ef44d62c0c94d042f5a5fb871ee47b7",
+                                                                                                "frame_0059.png":  "3dd309d4b155a952039bb97798b2c3c932e277f8dd5fc1e089face2d10d15350",
+                                                                                                "frame_0060.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93",
+                                                                                                "frame_0061.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93",
+                                                                                                "frame_0062.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93",
+                                                                                                "frame_0063.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93",
+                                                                                                "frame_0064.png":  "5bede296a519df67787d0140f217094da22824f06f26ee085814e695c88cce93"
+                                                                                             }
+                                                                       }
+                                                        },
+                                            "runtimeDerivedActions":  {
+                                                                          "attackBody":  {
+                                                                                              "derivedFromRuntimePath":  "graystone_keeper/attack/left",
+                                                                                              "runtimePath":  "graystone_keeper/attack_body/left",
+                                                                                              "frameCount":  64,
+                                                                                              "frameRate":  30,
+                                                                                              "canvas":  {
+                                                                                                             "width":  494,
+                                                                                                             "height":  210
+                                                                                                         },
+                                                                                              "sourceAnchor":  {
+                                                                                                                   "x":  393,
+                                                                                                                   "y":  190
+                                                                                                               },
+                                                                                              "runtimeScale":  0.72,
+                                                                                              "totalBytes":  1191076,
+                                                                                              "orderedContentSha256":  "7a8e8ac812ed53329b0b2b31b60ef229aedc9eb1b97eb20966c8628a9e85777c",
+                                                                                              "derivation":  "Source RGBA pixels are preserved except selected projectile-component pixels, which are cleared to transparent without cropping or resampling."
+                                                                                          },
+                                                                          "attackProjectile":  {
+                                                                                                    "derivedFromRuntimePath":  "graystone_keeper/attack/left",
+                                                                                                    "runtimePath":  "graystone_keeper/attack_projectile/left",
+                                                                                                    "sourceFrameRange":  [
+                                                                                                                             23,
+                                                                                                                             59
+                                                                                                                         ],
+                                                                                                    "flightSourceFrameRange":  [
+                                                                                                                                   23,
+                                                                                                                                   50
+                                                                                                                               ],
+                                                                                                    "impactSourceFrameRange":  [
+                                                                                                                                   51,
+                                                                                                                                   59
+                                                                                                                               ],
+                                                                                                    "frameCount":  37,
+                                                                                                    "frameRate":  30,
+                                                                                                    "canvas":  {
+                                                                                                                   "width":  64,
+                                                                                                                   "height":  64
+                                                                                                               },
+                                                                                                    "sourceAnchor":  {
+                                                                                                                         "x":  32,
+                                                                                                                         "y":  32
+                                                                                                                     },
+                                                                                                    "runtimeScale":  0.72,
+                                                                                                    "totalBytes":  65907,
+                                                                                                    "orderedContentSha256":  "c81d49edcd646a018c1299a561219a566b6986f7ffd4fa6a30ce73fec5486b1d",
+                                                                                                    "componentSelection":  {
+                                                                                                                                 "connectivity":  8,
+                                                                                                                                 "minimumXExclusiveUpperBound":  355,
+                                                                                                                                 "maximumYInclusiveUpperBound":  120,
+                                                                                                                                 "componentPixelCountExclusiveUpperBound":  1200
+                                                                                                                             },
+                                                                                                    "normalization":  "Selected source pixels are centered by their union bounds on a 64x64 transparent canvas without recoloring or resampling.",
+                                                                                                    "launchSourceCenter":  [
+                                                                                                                                 350.5,
+                                                                                                                                 97
+                                                                                                                             ],
+                                                                                                    "launchScreenOffset":  [
+                                                                                                                                 -30.6,
+                                                                                                                                 -66.96
+                                                                                                                             ],
+                                                                                                    "targetScreenOffset":  [
+                                                                                                                                 0,
+                                                                                                                                 -44
+                                                                                                                             ],
+                                                                                                    "arcHeightPixels":  20,
+                                                                                                    "targetCapture":  "The actual member-damage event grid coordinates are copied when the attack triggers and remain fixed through flight/impact."
+                                                                                                },
+                                                                          "validation":  {
+                                                                                             "sourceFrames":  64,
+                                                                                             "bodyFrames":  64,
+                                                                                             "projectileFrames":  37,
+                                                                                             "pixelReconstructionMismatches":  0,
+                                                                                             "fixedTrajectoryPixelsRemainingForXBelow335":  0,
+                                                                                             "clock":  "visualElapsedTime with the existing per-attack fit-to-interval playback rule"
+                                                                                         },
+                                                                          "originalAttackRuntimeUse":  "Source provenance and hash verification only; render.js loads attack_body plus attack_projectile."
+                                                                      }
+                                        },
+                   "furnace_colossus":  {
+                                            "displayName":  "炉心巨像",
+                                            "sourceCharacter":  "战士/穆格伦",
+                                            "actions":  {
+                                                            "idle":  {
+                                                                         "sourceRelativePath":  "02_战士_穆格伦/待机/PNG帧序列/left",
+                                                                         "runtimePath":  "furnace_colossus/idle/left",
+                                                                         "action":  "idle",
+                                                                         "direction":  "left",
+                                                                         "frameCount":  19,
+                                                                         "frameRate":  30,
+                                                                         "canvas":  {
+                                                                                        "width":  340,
+                                                                                        "height":  490
+                                                                                    },
+                                                                         "sourceAnchor":  {
+                                                                                              "x":  196,
+                                                                                              "y":  263
+                                                                                          },
+                                                                         "runtimeScale":  0.62,
+                                                                         "totalBytes":  653302,
+                                                                         "sourceSha256":  {
+                                                                                              "frame_0001.png":  "19ae801de9509079eb27016fc7d52ef5a260f328271654074ba25e9d7c68ea99",
+                                                                                              "frame_0002.png":  "19ae801de9509079eb27016fc7d52ef5a260f328271654074ba25e9d7c68ea99",
+                                                                                              "frame_0003.png":  "379d1fc582f2a5710590f6cffe992eb9245a126b6d86896e3edf003e14c8a14b",
+                                                                                              "frame_0004.png":  "cb0602fdcbdfb9f20fae1e23f07fb7b484b2e4163b6201937051a5cb2fe5ab6e",
+                                                                                              "frame_0005.png":  "cb0602fdcbdfb9f20fae1e23f07fb7b484b2e4163b6201937051a5cb2fe5ab6e",
+                                                                                              "frame_0006.png":  "3fde40265e33922ef66bcecd38a22f6e10b5a87660095e2943434aa0a5b7fc51",
+                                                                                              "frame_0007.png":  "3fde40265e33922ef66bcecd38a22f6e10b5a87660095e2943434aa0a5b7fc51",
+                                                                                              "frame_0008.png":  "2563eefc73236fcf4a8b9af3a8d6740108b0a363873c8049bfe1b0c2d1a81d79",
+                                                                                              "frame_0009.png":  "e3d4bf71049111526b5aa840cc4e10e4f3337d198d85ba7a50a921af9754a2dc",
+                                                                                              "frame_0010.png":  "e3d4bf71049111526b5aa840cc4e10e4f3337d198d85ba7a50a921af9754a2dc",
+                                                                                              "frame_0011.png":  "401f8b5c592db37e862cdfa93a81555a3ce08365c164d4794f64a2ff8a4dc848",
+                                                                                              "frame_0012.png":  "401f8b5c592db37e862cdfa93a81555a3ce08365c164d4794f64a2ff8a4dc848",
+                                                                                              "frame_0013.png":  "8e49228eaa407af956b9831dad75344588394c22520131c40b8d96e74eb2dd32",
+                                                                                              "frame_0014.png":  "8e49228eaa407af956b9831dad75344588394c22520131c40b8d96e74eb2dd32",
+                                                                                              "frame_0015.png":  "43270f91ccaf523b4b4ea96f991346cb441dfa3ce7eb524236a7c37850e97def",
+                                                                                              "frame_0016.png":  "43270f91ccaf523b4b4ea96f991346cb441dfa3ce7eb524236a7c37850e97def",
+                                                                                              "frame_0017.png":  "4b12d945f85e4fb740d3f59510491f30852a389c0f14c9bd0e23792b868893b1",
+                                                                                              "frame_0018.png":  "4b12d945f85e4fb740d3f59510491f30852a389c0f14c9bd0e23792b868893b1",
+                                                                                              "frame_0019.png":  "8ebbb72f744987e8b065ca7beb9678fee797558a27cd7d46b5354c31fd16c784"
+                                                                                          }
+                                                                     },
+                                                            "attack":  {
+                                                                           "sourceRelativePath":  "02_战士_穆格伦/普攻_近战/PNG帧序列/left",
+                                                                           "runtimePath":  "furnace_colossus/attack/left",
+                                                                           "action":  "basic_attack",
+                                                                           "direction":  "left",
+                                                                           "frameCount":  27,
+                                                                           "frameRate":  30,
+                                                                           "canvas":  {
+                                                                                          "width":  340,
+                                                                                          "height":  490
+                                                                                      },
+                                                                           "sourceAnchor":  {
+                                                                                                "x":  196,
+                                                                                                "y":  263
+                                                                                            },
+                                                                           "runtimeScale":  0.62,
+                                                                           "totalBytes":  867985,
+                                                                           "sourceSha256":  {
+                                                                                                "frame_0001.png":  "0b7cb3750060f5706dcd3550b271a01ce015c164dfae6d8e5a69e2313ad7bb7e",
+                                                                                                "frame_0002.png":  "0b7cb3750060f5706dcd3550b271a01ce015c164dfae6d8e5a69e2313ad7bb7e",
+                                                                                                "frame_0003.png":  "61d40fc78297305b6630dda9102ea5328ff43c5ac6f9721cda7c912939c164f3",
+                                                                                                "frame_0004.png":  "afa9043be2a656e85253491366252c552677ca2a133197b80c62963312b95c04",
+                                                                                                "frame_0005.png":  "afa9043be2a656e85253491366252c552677ca2a133197b80c62963312b95c04",
+                                                                                                "frame_0006.png":  "0236bce70fddeb71d2144eaacbfa4c05e83278a8111935737999365c1a2fab4d",
+                                                                                                "frame_0007.png":  "0236bce70fddeb71d2144eaacbfa4c05e83278a8111935737999365c1a2fab4d",
+                                                                                                "frame_0008.png":  "49a17ae4375190114dc257cf6a90d5dace59a8d5cc323b8e1d8c06d717050cca",
+                                                                                                "frame_0009.png":  "c18a6d1168d4ecc410681aae90c4ccf321ddc330ed2ee55c6d7071d81b81019a",
+                                                                                                "frame_0010.png":  "13f069475c5873b786e202fa3adc88b5a6d3ee9690e322904a0d8ce3f07242e5",
+                                                                                                "frame_0011.png":  "08048cc76c0cd5d368b2b5f5d4f27b30570611580c162127b93fe29e42f5f169",
+                                                                                                "frame_0012.png":  "89f85084f54244db424f76264fb3939029d2076bad1a305424390e767eca9e20",
+                                                                                                "frame_0013.png":  "e2b52729e54bf2e40a1e68eec87e98df69905d6ef7ac45f8df9ab57fda08b6db",
+                                                                                                "frame_0014.png":  "c42f7d5ae6ea9d51eab0bb34a54ede8f9556960764d897584db88f1963fc4d1e",
+                                                                                                "frame_0015.png":  "034fbf85e60fcf3ac48fd04c06f326265d3170bea5f0c389d98293eff16dbc14",
+                                                                                                "frame_0016.png":  "edfa8fdce1e91c3a92e222eb2b2520c254a3ef15c4df629274fef6070d672b69",
+                                                                                                "frame_0017.png":  "edfa8fdce1e91c3a92e222eb2b2520c254a3ef15c4df629274fef6070d672b69",
+                                                                                                "frame_0018.png":  "70efdf1abd04dc9e090db85bc7045f03beccc38a04e38972550c95a0ad65d865",
+                                                                                                "frame_0019.png":  "70efdf1abd04dc9e090db85bc7045f03beccc38a04e38972550c95a0ad65d865",
+                                                                                                "frame_0020.png":  "68d2664e8efcefd5e5886d512dcbc2ea8dba703ee86390b61b8daf587b0ef0bc",
+                                                                                                "frame_0021.png":  "68d2664e8efcefd5e5886d512dcbc2ea8dba703ee86390b61b8daf587b0ef0bc",
+                                                                                                "frame_0022.png":  "682d31641877a31adc3a0923d5f859a3e4b84afa824d7df1d9497af2ec2c0b0f",
+                                                                                                "frame_0023.png":  "682d31641877a31adc3a0923d5f859a3e4b84afa824d7df1d9497af2ec2c0b0f",
+                                                                                                "frame_0024.png":  "55d2a76f46cb01d02ac61ee2e250659214b4b37d7561ac6095dd6a7d65088453",
+                                                                                                "frame_0025.png":  "55d2a76f46cb01d02ac61ee2e250659214b4b37d7561ac6095dd6a7d65088453",
+                                                                                                "frame_0026.png":  "84e1081293c424c57985730e3c567cf15eb36a152e7fc69822e25f274944621a",
+                                                                                                "frame_0027.png":  "84e1081293c424c57985730e3c567cf15eb36a152e7fc69822e25f274944621a"
+                                                                                             }
+                                                                       }
+                                                        },
+                                            "visualAdjustment":  {
+                                                                     "bodyScreenOffset":  {
+                                                                                              "x":  0,
+                                                                                              "y":  -24
+                                                                                          },
+                                                                     "groundShadow":  {
+                                                                                          "sourceLayerDetected":  false,
+                                                                                          "runtimeLayerCount":  1,
+                                                                                          "screenOffset":  {
+                                                                                                               "x":  0,
+                                                                                                               "y":  5
+                                                                                                           },
+                                                                                          "radius":  {
+                                                                                                         "x":  30,
+                                                                                                         "y":  9
+                                                                                                     }
+                                                                                      },
+                                                                     "appliesTo":  [
+                                                                                       "idle",
+                                                                                       "attack",
+                                                                                       "procedural_fallback"
+                                                                                   ],
+                                                                     "preserves":  [
+                                                                                      "grid coordinates",
+                                                                                      "collision",
+                                                                                      "depth sorting",
+                                                                                      "engagement position",
+                                                                                      "Boss HUD"
+                                                                                  ]
+                                                                 }
+                                        },
+                   "stonecrown_lord":  {
+                                           "displayName":  "岩冠领主",
+                                           "sourceCharacter":  "法师/铁扇公主",
+                                           "actions":  {
+                                                           "idle":  {
+                                                                        "sourceRelativePath":  "03_法师_铁扇公主/待机/PNG帧序列/left",
+                                                                        "runtimePath":  "stonecrown_lord/idle/left",
+                                                                        "action":  "idle",
+                                                                        "direction":  "left",
+                                                                        "frameCount":  40,
+                                                                        "frameRate":  30,
+                                                                        "canvas":  {
+                                                                                       "width":  136,
+                                                                                       "height":  123
+                                                                                   },
+                                                                        "sourceAnchor":  {
+                                                                                             "x":  66,
+                                                                                             "y":  112
+                                                                                         },
+                                                                        "runtimeScale":  0.86,
+                                                                        "totalBytes":  654303,
+                                                                        "sourceSha256":  {
+                                                                                             "frame_0001.png":  "9696382475a0b80658414f5cecf056929289a06fef466ee9ee85ca4e51379ded",
+                                                                                             "frame_0002.png":  "4737768ebac54c5d20c7a8f7c484d4a54b993bed6b1a6aed79c61dcccceaf6dd",
+                                                                                             "frame_0003.png":  "76ed4b68f7a4638d358adba795f3892dee2989a61ce47d813c4cd844b70dd624",
+                                                                                             "frame_0004.png":  "704d4236da233d988e179a5e45855367099327b3d4035cc7d70f71b3f142e418",
+                                                                                             "frame_0005.png":  "f296cd7be814ef81b47d1eba7e1b7d7cde64609fe9856902b91fd411bd7d86b4",
+                                                                                             "frame_0006.png":  "e386eaadf5a1e2dce3a6b2b3b629c12849ab3fda5d731c1d3eaeb65e0a3ed6c1",
+                                                                                             "frame_0007.png":  "eef83431e3bf9f15ed6722d1f5860968164d5ca86b59113496751fead01d7d2a",
+                                                                                             "frame_0008.png":  "b523700350c80d3a677ca8a7e727e0601aecaca3f37d6b3db78cc7bddd2242cc",
+                                                                                             "frame_0009.png":  "eebec7d222f1cc1d3e6db88dcdf53e54dfa9a62f86b9b77fbca79781e8784ee4",
+                                                                                             "frame_0010.png":  "76d141e02fa5c01bfbc79a09ebe8ee045166d9b0f2b4aea0a20d1a12f200349a",
+                                                                                             "frame_0011.png":  "d8be98f475353820a5ffa7dbbb9e7832b22d17cfb79722220b00dfe0d8fab253",
+                                                                                             "frame_0012.png":  "e8308410831362c087671f8a8e500f48749e5d766a8c62aad4ee9500a9729516",
+                                                                                             "frame_0013.png":  "c8cc6e7702d92ada03423e7bbf9fa6775c802525d145c74bcbfab7e454339226",
+                                                                                             "frame_0014.png":  "53822800a31e3f6c4115fdae2d0b0fd4ff3885b43e4340381764bfb77ec3f572",
+                                                                                             "frame_0015.png":  "36b25a5ef3d37f28a900e15fe581a73267be4dc7e93ade860764e2591566b657",
+                                                                                             "frame_0016.png":  "44d13ae86df6fe1ffca00a9d2ccab807f98735c8ad923a370281c92c15a61c1e",
+                                                                                             "frame_0017.png":  "0bbaf0898fd9a5a8fcbc2f5b8a363badf41beec1f13e9abf60b20f230d7d1b8e",
+                                                                                             "frame_0018.png":  "976ec6daae7b1a946ad6dfc3ea802589526ce56c014e2d9de95a3e368e6aca34",
+                                                                                             "frame_0019.png":  "578f766c0fe8ba77cd55488dd4c1dbc5bb47200f265fdd3e10411a19b7ef0b9f",
+                                                                                             "frame_0020.png":  "bfda6948a8af769159b681d84a878a865d71841bed24a08f551a286dc8e3c324",
+                                                                                             "frame_0021.png":  "99d996a50b47668fffa9c8c71733fba75b1658183514115f23338965b858591e",
+                                                                                             "frame_0022.png":  "83fd2ffe819d23ab07f47c5b9272b618667c602e949aa3126a8fa58f6109cf39",
+                                                                                             "frame_0023.png":  "fcae2e3e29481ad94293b8a3f73a0a628491d28ac6fa3a9f053bc32df70af0b3",
+                                                                                             "frame_0024.png":  "db54e784a8e25ca1b2f812813aafc56711e7fb92f89b2cb933126541c92b90f9",
+                                                                                             "frame_0025.png":  "1695166000084809c6c3b2927e06658a134f8d43d6b118b5c3b1776476a500d0",
+                                                                                             "frame_0026.png":  "e76a1efd4dbe76039db23bc3b2cc1b4d645628cbb91164d8e909b5669afcbc2c",
+                                                                                             "frame_0027.png":  "c426553f915fb6a82df8bc0ddb6db72ab0b53d01800b3340db3ccf498b62835d",
+                                                                                             "frame_0028.png":  "7af8c0c6c4ae95d38964e88f7575f0ecc15171f363666bad9ebd123dda017bc4",
+                                                                                             "frame_0029.png":  "d4c00059d2f9ac488ffc83880f49276a0bf3837d579e9eb196af44ab4f262830",
+                                                                                             "frame_0030.png":  "ef89df276a737f423ee9388be8df6c9fe7bb321aa4e5467d0683edfcd8c80663",
+                                                                                             "frame_0031.png":  "868557f4b3535df81c53cc4336aa73cfc335750f1fec9e0ca761ee1743053927",
+                                                                                             "frame_0032.png":  "b5a547692ea9c7a667f940d7cdf0587e8e9fdd9bc656187468663e6929668f94",
+                                                                                             "frame_0033.png":  "1400f22f3a1b23afe5f4905ca62d2ee34c3d201dce2216d4e202779aee609e23",
+                                                                                             "frame_0034.png":  "c9f90511d738c799b44cac1d8ff40b8e01af2794c5e47efdb7ada31352570fb2",
+                                                                                             "frame_0035.png":  "96f1dd67a8173c891a7db48a9610e59eb44f6bc3219df33ab0a37c51f1c5e253",
+                                                                                             "frame_0036.png":  "a7fd363df5cd65933f6768ee2e4de26b3f583864366f5bc679a368f2e5dc3147",
+                                                                                             "frame_0037.png":  "4d3f8749a5fd07c07c0dbb60ecda06b20b31be34803a1837ef30f179876ee3be",
+                                                                                             "frame_0038.png":  "474289a909583c551897baf13b093be9843f82ce6a74ba481afb96960fdf251e",
+                                                                                             "frame_0039.png":  "55a3998a7c3f0472716e83317442a874f88e71cef2538f95aae5292d9cc37874",
+                                                                                             "frame_0040.png":  "1993722214d15c0f2f41662f50d2aec197fa81b0427dfd0330bad3c86f390da3"
+                                                                                         }
+                                                                    },
+                                                           "attack":  {
+                                                                          "sourceRelativePath":  "03_法师_铁扇公主/普攻_远程扇击/PNG帧序列/left",
+                                                                          "runtimePath":  "stonecrown_lord/attack/left",
+                                                                          "action":  "basic_attack",
+                                                                          "direction":  "left",
+                                                                          "frameCount":  48,
+                                                                          "frameRate":  30,
+                                                                          "canvas":  {
+                                                                                         "width":  379,
+                                                                                         "height":  248
+                                                                                     },
+                                                                          "sourceAnchor":  {
+                                                                                               "x":  145,
+                                                                                               "y":  154
+                                                                                           },
+                                                                          "runtimeScale":  0.86,
+                                                                          "totalBytes":  1029310,
+                                                                          "sourceSha256":  {
+                                                                                               "frame_0001.png":  "375cc16905db6f63514cb7e12338cf9f1a02c3ff6fbe26057e61cf61134f6dad",
+                                                                                               "frame_0002.png":  "375cc16905db6f63514cb7e12338cf9f1a02c3ff6fbe26057e61cf61134f6dad",
+                                                                                               "frame_0003.png":  "b751f7aa31967a5aa862e99c9c1409471aca4cedd896b0a1c180265a3fe94d16",
+                                                                                               "frame_0004.png":  "b751f7aa31967a5aa862e99c9c1409471aca4cedd896b0a1c180265a3fe94d16",
+                                                                                               "frame_0005.png":  "225cda9193dbd9004f988e41818b9b78d5a9d9c253eb008cebe0359f57d4829b",
+                                                                                               "frame_0006.png":  "225cda9193dbd9004f988e41818b9b78d5a9d9c253eb008cebe0359f57d4829b",
+                                                                                               "frame_0007.png":  "23f679d61ef3b64dcb613a7feb519d8c2f2062545cd01919a82a87a0e979021c",
+                                                                                               "frame_0008.png":  "d3fa89df39d26e624e73bbe549e2d66fd5a9f25f0233bd1133f27a7515f1e98d",
+                                                                                               "frame_0009.png":  "c6fc117fdf19ab7cf466f112b3521997e4b169d3463ae8ff0de91754b0af92fb",
+                                                                                               "frame_0010.png":  "b1512095d8c1d75e8b0b70ca83a01944253610511fc53bcf18e193bf98ac336d",
+                                                                                               "frame_0011.png":  "7fb37b9cd58b186fe204860889c4c6f443e8e306c23a18f693808b7a37e18a78",
+                                                                                               "frame_0012.png":  "098ea91e80efa3e6feacc2268954c25507098a19d03404b19d7188f328ad4a89",
+                                                                                               "frame_0013.png":  "7be68e141e54204948a4e352d96ea89f1cecfb6d740d8a38c7e7e906bf648750",
+                                                                                               "frame_0014.png":  "cc9417078a4da2aca9f9c08a1fa97c405da336dde324a18cbe06e8ae325da933",
+                                                                                               "frame_0015.png":  "942fb15d80268c5b13393931f2b78c77b42eb2bea03af9f64f5b4f4994e79278",
+                                                                                               "frame_0016.png":  "8da03d949c9f95a30ed61fc9e6d93586b70541f65ee286245c19d3b86112a9da",
+                                                                                               "frame_0017.png":  "7ee1712d5d7489aca183dcbc4e9429f796a2765369a43349ce19324d4b847676",
+                                                                                               "frame_0018.png":  "190c678b9f6ccd89a13fbb4dd597984ee47e142d91a2195965aef2dc4c8bd32a",
+                                                                                               "frame_0019.png":  "03399fbb34126a47bb2236c137973f46081fdf98724f226c24996cf5103a8061",
+                                                                                               "frame_0020.png":  "5ac37a54093cc1b8c9df9b5ab480f5642b6df22a541ef50b3ec7cafc67531b2a",
+                                                                                               "frame_0021.png":  "344178a2ca6455369f0b76cb367943f0071dec568650951a84973b550d253989",
+                                                                                               "frame_0022.png":  "a55d80d3c5a5709a562b401e06153678334c771be1b962cadb16facd67fce38a",
+                                                                                               "frame_0023.png":  "e72954c5f52588685d3b79ee4013ddacd38e018f4ce634980dcaa55a663a05fc",
+                                                                                               "frame_0024.png":  "692f8991a1e8e7eec13c3256d3c06b4637f5935712aa9dfbd98352c9fda9bd23",
+                                                                                               "frame_0025.png":  "ebe5bbe09815fa67d06f614ee97c3fe9e60bd758cf2b6bc0cb5c998f533d7472",
+                                                                                               "frame_0026.png":  "11bfe52e2058b1a3220e1c0b67ae434605145acf00a9379906eceecee0623f59",
+                                                                                               "frame_0027.png":  "b505265d5fd33a4872f8662e1c634c8f7f8b5b30193487f45fb7f6406a88dfde",
+                                                                                               "frame_0028.png":  "b505265d5fd33a4872f8662e1c634c8f7f8b5b30193487f45fb7f6406a88dfde",
+                                                                                               "frame_0029.png":  "a80433bd8a00cb978a0574605389b9b5495e3265383c8bfc564cec2fb4e975b5",
+                                                                                               "frame_0030.png":  "88749f6b56870a5b6e38bcaa4890852a01b3fc3e1eb6ffa0bec10754e3a90d74",
+                                                                                               "frame_0031.png":  "e85364e3229791e39d986a98bdcef050792b3480cbfe815c3666466d9a771487",
+                                                                                               "frame_0032.png":  "354c6773314ced3ec5e917a37495eef6ed9acf0dfc3ecc04ab9e2d41c813d79f",
+                                                                                               "frame_0033.png":  "bf063805e8ad5ec57a3d28650bdcaba39bbe10ad595902f828e2e0bf07fe7ab6",
+                                                                                               "frame_0034.png":  "5080bc25ae235f0aab6df843837de726d515cda13a3871580766f603dac3305b",
+                                                                                               "frame_0035.png":  "103bff73ebe7b8df39a92f121e7a94747a048a631f1ed552d9ea6ac541bf6d14",
+                                                                                               "frame_0036.png":  "083db039646469c75a2682e940f38e5a8c69cf7c5d48aca4a73866a905ad2f2e",
+                                                                                               "frame_0037.png":  "a4698ebcee609ae8124d599ada377a82f34f108ee4e2b3eb4046be08ca898609",
+                                                                                               "frame_0038.png":  "605ac009c7da7a7343749b9f266d97568243b7252035728b91b2f55391fc5522",
+                                                                                               "frame_0039.png":  "fe0e068f003b9fe35183a6b6bf193782e53f1de28f9d8911de00afc4870958d2",
+                                                                                               "frame_0040.png":  "fe0e068f003b9fe35183a6b6bf193782e53f1de28f9d8911de00afc4870958d2",
+                                                                                               "frame_0041.png":  "ad5f2bde4c5f0db16bfc74794396a044d18cdf583e6220d3cace5100a180c0f6",
+                                                                                               "frame_0042.png":  "ad5f2bde4c5f0db16bfc74794396a044d18cdf583e6220d3cace5100a180c0f6",
+                                                                                               "frame_0043.png":  "42f8b6b193b038d155df126e4b794a96d346663024233c28803a9bf35bb72814",
+                                                                                               "frame_0044.png":  "42f8b6b193b038d155df126e4b794a96d346663024233c28803a9bf35bb72814",
+                                                                                               "frame_0045.png":  "f5ed7f5ce7fc6ecc4b926065afab89a2cde8dc8fbd9ae207787836ff66c783f5",
+                                                                                               "frame_0046.png":  "f5ed7f5ce7fc6ecc4b926065afab89a2cde8dc8fbd9ae207787836ff66c783f5",
+                                                                                               "frame_0047.png":  "5f6c0d533e279580c0408d072ab422c52d8c6c1d1d9cfc20e1fb696b62ab9676",
+                                                                                               "frame_0048.png":  "b274ad49c1e53da53bb6c3bd36f54611de93a13a60a9613b0f0a45058877440f"
+                                                                                           }
+                                                                      }
+                                                       }
+                                       }
+               }
 }

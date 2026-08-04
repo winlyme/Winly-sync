@@ -18,6 +18,10 @@
     INVENTORY_VIEW: "正在查看背包装备",
     INVENTORY_CLEARED: "背包装备已全部清空",
     LOOT_CLOSED: "战利品详情已关闭",
+    RESPAWN: "蕾琳正在复苏",
+    CAMP_DEPARTURE: "蕾琳正在启程",
+    DUNGEON_ARRIVAL: "蕾琳抵达入口",
+    DUNGEON_DEPARTURE: "蕾琳正在离场",
     UNKNOWN: "当前状态已更新",
   });
   const STATUS_BUILDERS = Object.freeze({
@@ -71,10 +75,21 @@
     }),
     PHASES: Object.freeze({
       CAMP: "camp",
+      TRANSITION: "transition",
       APPROACH: "approach",
       COMBAT: "combat",
       VICTORY: "victory",
       DEFEAT: "defeat",
+    }),
+    TRANSITION_ACTIONS: Object.freeze({
+      LEVEL_UP: "levelup",
+      RESPAWN: "respawn",
+    }),
+    TRANSITION_TYPES: Object.freeze({
+      CAMP_RESPAWN: "camp_respawn",
+      CAMP_DEPARTURE: "camp_departure",
+      DUNGEON_ARRIVAL: "dungeon_arrival",
+      DUNGEON_DEPARTURE: "dungeon_departure",
     }),
     OVERLAYS: Object.freeze({
       NONE: "none",

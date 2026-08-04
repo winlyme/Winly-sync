@@ -66,6 +66,19 @@
       elements.difficultySelect.addEventListener("change", (event) => {
         handlers.selectDifficulty(Number(event.target.value));
       });
+      elements.gameCanvas.addEventListener("click", (event) => {
+        if (event.button !== 0) return;
+        const bounds = elements.gameCanvas.getBoundingClientRect();
+        if (bounds.width <= 0 || bounds.height <= 0) return;
+        handlers.selectCampDestination({
+          x:
+            (event.clientX - bounds.left) *
+            (elements.gameCanvas.width / bounds.width),
+          y:
+            (event.clientY - bounds.top) *
+            (elements.gameCanvas.height / bounds.height),
+        });
+      });
       elements.speedButtons.forEach((button) => {
         button.addEventListener("click", () => handlers.changeSpeed(Number(button.dataset.speed)));
       });
@@ -111,7 +124,7 @@
 
       elements.victoryCount.textContent = `副本 ${state.dungeonCompletions} · 首领 ${state.victories}`;
       elements.statusCluster.classList.toggle("is-combat", state.phase === Game.Core.PHASES.COMBAT);
-      elements.challengeButton.disabled = state.scene !== Game.Core.SCENES.CAMP;
+      elements.challengeButton.disabled = !isStableCamp();
       elements.challengeButton.textContent = `攻略难度 ${state.selectedDifficulty}`;
       elements.bossHud.hidden = !state.roomRuntime?.boss;
 
@@ -148,7 +161,7 @@
         Game.Core.MAX_DIFFICULTY,
         Math.max(1, state.maxUnlockedDifficulty),
       );
-      const signature = `${maximumDifficulty}:${state.selectedDifficulty}:${state.scene}`;
+      const signature = `${maximumDifficulty}:${state.selectedDifficulty}:${state.scene}:${state.phase}`;
       if (signature === difficultySignature) return;
       difficultySignature = signature;
       elements.difficultySelect.replaceChildren();
@@ -160,7 +173,7 @@
         elements.difficultySelect.append(option);
       }
       elements.difficultySelect.value = String(state.selectedDifficulty);
-      elements.difficultySelect.disabled = state.scene !== Game.Core.SCENES.CAMP;
+      elements.difficultySelect.disabled = !isStableCamp();
     }
 
     function renderPrepSummary(member, stats) {
@@ -220,7 +233,7 @@
       inventorySignature = signature;
       elements.inventoryCount.textContent = `${state.inventory.length} 件`;
       elements.clearInventoryButton.disabled =
-        state.inventory.length === 0 || state.scene !== Game.Core.SCENES.CAMP;
+        state.inventory.length === 0 || !isStableCamp();
       elements.inventoryItems.replaceChildren();
       if (state.inventory.length === 0) {
         const empty = documentRef.createElement("span");
@@ -238,7 +251,7 @@
         inspect.className = "inventory-item";
         inspect.dataset.itemAction = "inspect";
         inspect.dataset.inventoryId = item.id;
-        inspect.disabled = state.scene !== Game.Core.SCENES.CAMP;
+        inspect.disabled = !isStableCamp();
         inspect.style.color = Game.Inventory.itemColor(item);
         inspect.innerHTML = `<strong></strong><span></span>`;
         inspect.querySelector("strong").textContent = item.name;
@@ -247,7 +260,7 @@
         discard.className = "inventory-discard";
         discard.dataset.itemAction = "discard";
         discard.dataset.inventoryId = item.id;
-        discard.disabled = state.scene !== Game.Core.SCENES.CAMP;
+        discard.disabled = !isStableCamp();
         discard.textContent = "×";
         discard.setAttribute("aria-label", `丢弃${item.name}`);
         row.append(inspect, discard);
@@ -317,6 +330,13 @@
       return (
         state.phase === Game.Core.PHASES.CAMP ||
         state.phase === Game.Core.PHASES.APPROACH
+      );
+    }
+
+    function isStableCamp() {
+      return (
+        state.scene === Game.Core.SCENES.CAMP &&
+        state.phase === Game.Core.PHASES.CAMP
       );
     }
 

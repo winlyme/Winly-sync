@@ -23,12 +23,19 @@
   const { state, party } = runtime;
   const ui = Game.UI.create(document, runtime);
   const renderer = Game.Renderer.create(canvas, worldData, runtime);
-  const { SCENES, PHASES, OVERLAYS, MAX_DIFFICULTY } = Game.Core;
+  const {
+    SCENES,
+    PHASES,
+    OVERLAYS,
+    MAX_DIFFICULTY,
+    TRANSITION_ACTIONS,
+    TRANSITION_TYPES,
+  } = Game.Core;
   const dungeonBounds = Game.World.getMapScreenBounds(worldData.dungeon);
-  const GAMEPLAY_BASELINE_MULTIPLIER = 2;
+  const MOVEMENT_BASELINE_MULTIPLIER = 2;
+  const RAELYN_TRANSITION_DURATION = 24 / 30;
 
   const loadResult = Game.Save.load(state, party);
-  if (!loadResult.ok) setStatus("SAVE_FAILED");
   Game.State.resetPartyForCamp(
     party,
     worldData.camp,
@@ -38,11 +45,13 @@
     state.overlay = OVERLAYS.LOOT;
     state.selectedItemId = state.unreviewedLootIds[0];
   }
+  beginCampRespawn(loadResult.ok ? "CAMP" : "SAVE_FAILED");
 
   ui.bindHandlers({
     challenge: startSelectedDifficulty,
     changeSpeed,
     selectDifficulty,
+    selectCampDestination,
     inspectItem,
     discardItem,
     clearInventory,
@@ -59,32 +68,99 @@
   function gameLoop(now) {
     const delta = Math.min((now - state.lastFrameTime) / 1000, 0.05);
     state.lastFrameTime = now;
-    const gameplayDelta =
-      delta * state.speedMultiplier * GAMEPLAY_BASELINE_MULTIPLIER;
-    state.visualElapsedTime += delta;
-    state.elapsedTime += gameplayDelta;
-    update(gameplayDelta, delta);
+    const simulationDelta = delta * state.speedMultiplier;
+    const movementDelta = simulationDelta * MOVEMENT_BASELINE_MULTIPLIER;
+    const visualDelta = delta * state.speedMultiplier;
+    state.visualElapsedTime += visualDelta;
+    state.elapsedTime += simulationDelta;
+    update(simulationDelta, movementDelta, delta);
     renderer.render();
     ui.render();
     requestAnimationFrame(gameLoop);
   }
 
-  function update(delta, cameraDelta = delta) {
-    Game.State.updateTransientEffects(state, party, delta);
+  function update(
+    simulationDelta,
+    movementDelta = simulationDelta * MOVEMENT_BASELINE_MULTIPLIER,
+    cameraDelta = simulationDelta,
+  ) {
+    Game.State.updateTransientEffects(state, party, simulationDelta);
+    if (state.phase === PHASES.TRANSITION) {
+      updateSceneTransition(simulationDelta);
+      if (state.scene === SCENES.DUNGEON) updateDungeonCamera(cameraDelta);
+      return;
+    }
     if (state.scene === SCENES.CAMP) {
       Game.World.updateCamp(
-        delta,
+        simulationDelta,
+        movementDelta,
         party,
         worldData.camp,
         Game.Inventory.getMemberStats,
       );
     } else {
-      updateDungeon(delta);
+      updateDungeon(simulationDelta, movementDelta);
       if (state.scene === SCENES.DUNGEON) updateDungeonCamera(cameraDelta);
     }
   }
 
-  function updateDungeon(delta) {
+  function updateSceneTransition(delta) {
+    if (!Game.State.advanceTransition(state, delta)) return;
+    const transition = Game.State.clearTransition(state);
+    if (transition.type === TRANSITION_TYPES.CAMP_RESPAWN) {
+      state.phase = PHASES.CAMP;
+      party.members.forEach(Game.World.startCampWait);
+      setStatus(transition.completionStatusKey || "CAMP");
+      return;
+    }
+    if (transition.type === TRANSITION_TYPES.CAMP_DEPARTURE) {
+      prepareDungeonRun();
+      beginSceneTransition(
+        TRANSITION_TYPES.DUNGEON_ARRIVAL,
+        TRANSITION_ACTIONS.LEVEL_UP,
+      );
+      updateDungeonCamera(0, true);
+      return;
+    }
+    if (transition.type === TRANSITION_TYPES.DUNGEON_ARRIVAL) {
+      enterRouteNode(worldData.dungeon.entranceRoomId);
+      return;
+    }
+    if (transition.type === TRANSITION_TYPES.DUNGEON_DEPARTURE) {
+      returnToCamp(transition.completionStatusKey || "CLEAR");
+    }
+  }
+
+  function beginSceneTransition(type, action, completionStatusKey = null) {
+    party.members.forEach((member) => {
+      member.path = [];
+      member.target = null;
+      member.moving = false;
+    });
+    Game.State.beginTransition(state, {
+      type,
+      action,
+      duration: RAELYN_TRANSITION_DURATION,
+      completionStatusKey,
+    });
+    const statusByType = {
+      [TRANSITION_TYPES.CAMP_RESPAWN]: "RESPAWN",
+      [TRANSITION_TYPES.CAMP_DEPARTURE]: "CAMP_DEPARTURE",
+      [TRANSITION_TYPES.DUNGEON_ARRIVAL]: "DUNGEON_ARRIVAL",
+      [TRANSITION_TYPES.DUNGEON_DEPARTURE]: "DUNGEON_DEPARTURE",
+    };
+    setStatus(statusByType[type]);
+  }
+
+  function beginCampRespawn(completionStatusKey) {
+    beginSceneTransition(
+      TRANSITION_TYPES.CAMP_RESPAWN,
+      TRANSITION_ACTIONS.RESPAWN,
+      completionStatusKey,
+    );
+  }
+
+  function updateDungeon(simulationDelta, movementDelta) {
     const routeRuntime = state.routeRuntime;
     if (!routeRuntime) return;
     const livingMembers = party.members.filter((member) => member.alive);
@@ -92,7 +168,11 @@
     if (state.phase === PHASES.APPROACH) {
       livingMembers.forEach((member) => {
         if (member.path.length > 0) {
-          Game.World.advanceAlongPath(member, delta, Game.Inventory.getMemberStats);
+          Game.World.advanceAlongPath(
+            member,
+            movementDelta,
+            Game.Inventory.getMemberStats,
+          );
         }
       });
       if (state.roomRuntime?.boss) {
@@ -115,9 +195,14 @@
         abortDungeonRoute();
         return;
       }
-      const events = Game.Combat.updateBattle(delta, party, runtimeRoom.boss);
+      const events = Game.Combat.updateBattle(
+        simulationDelta,
+        party,
+        runtimeRoom.boss,
+      );
       for (const event of events) {
         if (event.type === "damage") {
+          captureGraystoneAttackTarget(runtimeRoom.boss, event);
           Game.State.addFloatingText(
             state,
             event.x,
@@ -139,27 +224,46 @@
     }
 
     if (state.phase === PHASES.VICTORY) {
-      state.resolveTimer -= delta;
+      state.resolveTimer -= simulationDelta;
       if (state.resolveTimer <= 0) advanceAfterVictory();
       return;
     }
 
     if (state.phase === PHASES.DEFEAT) {
-      state.resolveTimer -= delta;
+      state.resolveTimer -= simulationDelta;
       if (state.resolveTimer <= 0) {
         returnToCamp(saveProgress("FAILURE"));
       }
     }
   }
 
+  function captureGraystoneAttackTarget(boss, event) {
+    if (boss?.id !== "graystone_keeper" || event?.target !== "member") return;
+    const targetX = Number(event.x);
+    const targetY = Number(event.y);
+    if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) return;
+    boss.visualAttackTarget = {
+      sequence: incrementCount(boss.visualAttackTarget?.sequence),
+      x: targetX,
+      y: targetY,
+    };
+  }
+
   function startSelectedDifficulty() {
-    if (state.scene !== SCENES.CAMP) return;
-    state.scene = SCENES.DUNGEON;
+    if (!isStableCamp()) return;
     state.runDifficulty = Game.Core.clampInteger(
       state.selectedDifficulty,
       1,
       MAX_DIFFICULTY,
     );
+    beginSceneTransition(
+      TRANSITION_TYPES.CAMP_DEPARTURE,
+      TRANSITION_ACTIONS.LEVEL_UP,
+    );
+  }
+
+  function prepareDungeonRun() {
+    state.scene = SCENES.DUNGEON;
     state.currentRoomIndex = 0;
     state.visitedRoomIds = [];
     state.currentRouteNodeId = null;
@@ -177,8 +281,6 @@
       member.y = worldData.dungeon.entry.y - Math.floor(index / 2);
       member.direction = { x: 1, y: 0 };
     });
-    enterRouteNode(worldData.dungeon.entranceRoomId);
-    if (state.scene === SCENES.DUNGEON) updateDungeonCamera(0, true);
   }
 
   function enterRouteNode(nodeId) {
@@ -489,7 +591,11 @@
     state.maxUnlockedDifficulty = difficultyProgress.maxUnlockedDifficulty;
     state.selectedDifficulty = difficultyProgress.selectedDifficulty;
     const completionStatus = difficulty === MAX_DIFFICULTY ? "MAX_CLEAR" : "CLEAR";
-    returnToCamp(saveProgress(completionStatus));
+    beginSceneTransition(
+      TRANSITION_TYPES.DUNGEON_DEPARTURE,
+      TRANSITION_ACTIONS.LEVEL_UP,
+      saveProgress(completionStatus),
+    );
   }
 
   function abortDungeonRoute() {
@@ -498,7 +604,7 @@
 
   function returnToCamp(statusKey) {
     state.scene = SCENES.CAMP;
-    state.phase = PHASES.CAMP;
+    state.transition = null;
     state.currentRoomId = null;
     state.currentRoomIndex = 0;
     state.visitedRoomIds = [];
@@ -518,11 +624,11 @@
       worldData.camp,
       Game.Inventory.getMemberStats,
     );
-    setStatus(statusKey);
+    beginCampRespawn(statusKey);
   }
 
   function selectDifficulty(value) {
-    if (state.scene !== SCENES.CAMP) return;
+    if (!isStableCamp()) return;
     state.selectedDifficulty = Game.Core.clampInteger(
       value,
       1,
@@ -543,7 +649,7 @@
   }
 
   function inspectItem(itemId) {
-    if (state.scene !== SCENES.CAMP) return;
+    if (!isStableCamp()) return;
     if (!state.inventory.some((item) => item.id === itemId)) return;
     state.selectedItemId = itemId;
     state.overlay = OVERLAYS.INVENTORY;
@@ -578,7 +684,7 @@
   }
 
   function discardItem(itemId) {
-    if (state.scene !== SCENES.CAMP) return;
+    if (!isStableCamp()) return;
     const item = state.inventory.find((candidate) => candidate.id === itemId);
     if (!item) return;
     Game.Inventory.discardItem(state.inventory, itemId);
@@ -588,7 +694,7 @@
   }
 
   function clearInventory() {
-    if (state.scene !== SCENES.CAMP || state.inventory.length === 0) return;
+    if (!isStableCamp() || state.inventory.length === 0) return;
     if (!globalThis.confirm(`确定清空背包中的 ${state.inventory.length} 件装备吗？`)) return;
     Game.Inventory.clearAll(state.inventory);
     state.unreviewedLootIds = [];
@@ -636,6 +742,24 @@
     return state.phase === PHASES.CAMP || state.phase === PHASES.APPROACH;
   }
 
+  function isStableCamp() {
+    return state.scene === SCENES.CAMP && state.phase === PHASES.CAMP;
+  }
+
+  function selectCampDestination(canvasPoint) {
+    if (!isStableCamp()) return false;
+    const goal = Game.World.screenToGrid(
+      worldData.camp.origin,
+      canvasPoint?.x,
+      canvasPoint?.y,
+    );
+    return Game.World.setCampDestination(
+      party.members[0],
+      goal,
+      worldData.camp,
+    );
+  }
+
   function incrementCount(value) {
     return Math.min(
       Number.MAX_SAFE_INTEGER,
@@ -651,14 +775,20 @@
       ui,
       renderer,
       startSelectedDifficulty,
+      prepareDungeonRun,
       update,
+      updateSceneTransition,
       enterRouteNode,
       advanceFromRouteNode,
       beginCombat,
       finishVictory,
       finishDefeat,
       advanceAfterVictory,
+      completeDifficulty,
+      returnToCamp,
       handlers: Object.freeze({
+        selectDifficulty,
+        selectCampDestination,
         selectLoot,
         equipSelected,
         discardSelected,

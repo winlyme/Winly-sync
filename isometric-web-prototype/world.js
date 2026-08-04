@@ -385,19 +385,7 @@
       minY: 0,
       maxY: map.height - 1,
     };
-    const routeBlocked = new Set(blocked);
-    for (let y = 0; y < map.height; y += 1) {
-      for (let x = 0; x < map.width; x += 1) {
-        if (
-          x < bounds.minX ||
-          x > bounds.maxX ||
-          y < bounds.minY ||
-          y > bounds.maxY
-        ) {
-          routeBlocked.add(Game.Core.cellKey(x, y));
-        }
-      }
-    }
+    const routeBlocked = buildActivityBlockedSet(map, blocked, bounds);
     const candidates = [];
     for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
       for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
@@ -420,13 +408,78 @@
         return;
       }
     }
-    member.waitTimer = 0.8;
+    startCampWait(member);
+  }
+
+  function buildActivityBlockedSet(map, blocked, bounds) {
+    const routeBlocked = new Set(blocked);
+    for (let y = 0; y < map.height; y += 1) {
+      for (let x = 0; x < map.width; x += 1) {
+        if (
+          x < bounds.minX ||
+          x > bounds.maxX ||
+          y < bounds.minY ||
+          y > bounds.maxY
+        ) {
+          routeBlocked.add(Game.Core.cellKey(x, y));
+        }
+      }
+    }
+    return routeBlocked;
+  }
+
+  function randomCampWaitDuration() {
+    return 4 + Math.random() * 2;
+  }
+
+  function startCampWait(member) {
+    member.path = [];
+    member.target = null;
+    member.moving = false;
+    member.waitTimer = randomCampWaitDuration();
+    return member.waitTimer;
+  }
+
+  function setCampDestination(member, goal, camp) {
+    const bounds = camp.activityBounds;
+    if (
+      !Number.isInteger(goal?.x) ||
+      !Number.isInteger(goal?.y) ||
+      goal.x < bounds.minX ||
+      goal.x > bounds.maxX ||
+      goal.y < bounds.minY ||
+      goal.y > bounds.maxY
+    ) {
+      return false;
+    }
+    const blocked = buildActivityBlockedSet(
+      camp.map,
+      buildBlockedSet(camp.props),
+      bounds,
+    );
+    const start = { x: Math.round(member.x), y: Math.round(member.y) };
+    const result = findPathResult(start, goal, camp.map, blocked);
+    if (!result.reachable) return false;
+
+    const path = result.path.map((cell) => ({ ...cell }));
+    if (
+      Math.abs(member.x - start.x) > 0.001 ||
+      Math.abs(member.y - start.y) > 0.001
+    ) {
+      path.unshift(start);
+    }
+    member.path = path;
+    member.target = { ...goal };
+    member.waitTimer = 0;
+    member.moving = path.length > 0;
+    if (path.length === 0) startCampWait(member);
+    return true;
   }
 
   function advanceAlongPath(member, delta, getStats) {
     if (member.path.length === 0) {
       member.moving = false;
-      return;
+      return false;
     }
     const nextCell = member.path[0];
     const deltaX = nextCell.x - member.x;
@@ -442,20 +495,21 @@
       member.path.shift();
       if (member.path.length === 0) {
         member.moving = false;
-        member.waitTimer = 0.7 + Math.random() * 0.8;
+        return true;
       }
     } else {
       member.x += (deltaX / distance) * travel;
       member.y += (deltaY / distance) * travel;
     }
+    return false;
   }
 
-  function updateCamp(delta, party, camp, getStats) {
+  function updateCamp(waitDelta, movementDelta, party, camp, getStats) {
     const blocked = buildBlockedSet(camp.props);
     party.members.forEach((member) => {
       if (member.path.length === 0) {
         member.moving = false;
-        member.waitTimer -= delta;
+        member.waitTimer -= waitDelta;
         if (member.waitTimer <= 0) {
           chooseCampDestination(
             member,
@@ -465,7 +519,8 @@
           );
         }
       } else {
-        advanceAlongPath(member, delta, getStats);
+        const arrived = advanceAlongPath(member, movementDelta, getStats);
+        if (arrived) startCampWait(member);
       }
     });
   }
@@ -474,6 +529,15 @@
     return {
       x: origin.x + (gridX - gridY) * (TILE_WIDTH / 2),
       y: origin.y + (gridX + gridY) * (TILE_HEIGHT / 2),
+    };
+  }
+
+  function screenToGrid(origin, screenX, screenY) {
+    const projectedX = (screenX - origin.x) / (TILE_WIDTH / 2);
+    const projectedY = (screenY - origin.y) / (TILE_HEIGHT / 2);
+    return {
+      x: Math.round((projectedX + projectedY) / 2),
+      y: Math.round((projectedY - projectedX) / 2),
     };
   }
 
@@ -553,9 +617,13 @@
     findApproachPath,
     measurePathMetrics,
     chooseCampDestination,
+    randomCampWaitDuration,
+    startCampWait,
+    setCampDestination,
     advanceAlongPath,
     updateCamp,
     gridToScreen,
+    screenToGrid,
     getMapScreenBounds,
     computeClampedCameraTarget,
     updateCamera,

@@ -126,6 +126,7 @@
         initialized: false,
       },
       resolveTimer: 0,
+      transition: null,
       inventory: [],
       unreviewedLootIds: [],
       selectedItemId: null,
@@ -162,9 +163,48 @@
       resetMemberCombat(member, getStats);
       member.x = formationPositions[index].x;
       member.y = formationPositions[index].y;
-      member.waitTimer = 0.25 + index * 0.15;
+      member.waitTimer = 0;
       member.direction = { x: 1, y: 0 };
     });
+  }
+
+  function beginTransition(state, transition) {
+    const duration = Number(transition?.duration);
+    if (!Object.values(Game.Core.TRANSITION_TYPES).includes(transition?.type)) {
+      throw new Error("Unknown scene transition type");
+    }
+    if (!Object.values(Game.Core.TRANSITION_ACTIONS).includes(transition?.action)) {
+      throw new Error("Unknown scene transition action");
+    }
+    if (!Number.isFinite(duration) || duration <= 0) {
+      throw new RangeError("Scene transition duration must be positive");
+    }
+    state.phase = Game.Core.PHASES.TRANSITION;
+    state.transition = {
+      type: transition.type,
+      action: transition.action,
+      elapsed: 0,
+      duration,
+      completionStatusKey: transition.completionStatusKey || null,
+    };
+    return state.transition;
+  }
+
+  function advanceTransition(state, delta) {
+    if (state.phase !== Game.Core.PHASES.TRANSITION || !state.transition) {
+      return false;
+    }
+    state.transition.elapsed = Math.min(
+      state.transition.duration,
+      state.transition.elapsed + Math.max(0, delta),
+    );
+    return state.transition.elapsed >= state.transition.duration;
+  }
+
+  function clearTransition(state) {
+    const transition = state.transition;
+    state.transition = null;
+    return transition;
   }
 
   function updateTransientEffects(state, party, delta) {
@@ -193,6 +233,9 @@
     resetMemberCombat,
     prepareMemberForRoom,
     resetPartyForCamp,
+    beginTransition,
+    advanceTransition,
+    clearTransition,
     updateTransientEffects,
     addFloatingText,
   });

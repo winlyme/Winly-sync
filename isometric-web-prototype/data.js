@@ -22,6 +22,10 @@
     libraryB: "#554f63",
     stairsA: "#77727b",
     stairsB: "#66616b",
+    sunkenA: "#4a3b43",
+    sunkenB: "#40333b",
+    descendingStairsA: "#745763",
+    descendingStairsB: "#654b56",
     stoneCrack: "rgba(25, 22, 30, 0.42)",
     campSideLeft: "#3d6143",
     campSideRight: "#2f5038",
@@ -96,6 +100,10 @@
     obsidianPedestal: Object.freeze({ baseHeight: 48 }),
     arcaneMark: Object.freeze({ baseHeight: 2 }),
     brokenRing: Object.freeze({ baseHeight: 3 }),
+    lowWall: Object.freeze({ baseHeight: 21 }),
+    ironFence: Object.freeze({ baseHeight: 36 }),
+    archeryTarget: Object.freeze({ baseHeight: 47 }),
+    routeDebris: Object.freeze({ baseHeight: 31 }),
   });
 
   function createCampMap(spawn) {
@@ -121,482 +129,342 @@
     return { width, height, tiles };
   }
 
+  const BLOOD_HALL_R2_ROWS = Object.freeze([
+    "              ....                         ",
+    "             ......                        ",
+    "            ........                       ",
+    "            ...3....                       ",
+    "            ........                       ",
+    "            ........                       ",
+    "             ......                        ",
+    "              ....                         ",
+    "               ..                          ",
+    "              ....                         ",
+    "              ....                         ",
+    "              ....                         ",
+    "              ....                         ",
+    "               ..                          ",
+    "              ....                         ",
+    "              ....                         ",
+    "              ....                         ",
+    "              ....                         ",
+    "               ..                   ....   ",
+    "              ....                 ......  ",
+    "              ....                ..f..f.. ",
+    "              ....                .ff..ff. ",
+    "              ....               ..f....f..",
+    "               ..                ..f.2..f..",
+    "              .... ... ....       .ff..ff. ",
+    "              ..............      ...ff... ",
+    "              ..............       ......  ",
+    "              .... ... ....          ..    ",
+    "               ..   ..  ..           ..    ",
+    "              .... ... .................   ",
+    "              .... ... ..................  ",
+    "              .... ... .................   ",
+    "                        ..           ..    ",
+    "                       ....          ..    ",
+    "                       ....          ..    ",
+    "                       ....          ..    ",
+    "                                     ..    ",
+    "                                rrr  ..    ",
+    "                               .........   ",
+    "                               .........   ",
+    "                               .........   ",
+    "                                ...  ..    ",
+    "                           ...  ...        ",
+    "                          .........        ",
+    "                          .c.......        ",
+    "                          .........        ",
+    "                           ...  ...        ",
+    "                           ...             ",
+    "                       .c.........r        ",
+    "                      ............r        ",
+    "                      ............r        ",
+    "                       ... rrr  ...        ",
+    "                       ..                  ",
+    "                       ..                  ",
+    "                       ..                  ",
+    "                       ..                  ",
+    "                       ..                  ",
+    "                  ...........              ",
+    "                  ...........              ",
+    "                  .wwww..www.              ",
+    "                  .w.......w.              ",
+    "                  .........w.              ",
+    "                  .....1...w.              ",
+    "                  .w............ ...       ",
+    "                  .w............ ...       ",
+    "                  .w.......w. ......       ",
+    "                  .www..wwww.              ",
+    "                  ...........              ",
+    "                  ...........              ",
+    "                  ..                       ",
+    "                  ..                       ",
+    "                  ..                       ",
+    "                  ..                       ",
+    "                  ..                       ",
+    "            ............                   ",
+    "            ..wwww..ww..                   ",
+    "            ..w......w..                   ",
+    "            ..wdd....w..                   ",
+    "            .........w..                   ",
+    "            .......t w..                   ",
+    "            ..wd.....w..                   ",
+    "            ..wd...t w..                   ",
+    "            ..w......w..                   ",
+    "            ..wd...t w..                   ",
+    "            ..w......w..                   ",
+    "            ..wd.....w..                   ",
+    "            ..w......w..                   ",
+    "            ..w......wxx                   ",
+    "            ..w......wxx                   ",
+    "            ..w......w..                   ",
+    "            xxw......w..                   ",
+    "            xxw.........                   ",
+    "            ..w.........                   ",
+    "            ..w......w..                   ",
+    "            ..ww..wwww..                   ",
+    "            ............                   ",
+    "            ..                             ",
+    " ...............                           ",
+    ".................                          ",
+    " ...............                           ",
+    "  eee                                      ",
+    "  eee                                      ",
+  ]);
+  const BLOOD_HALL_R2_SOURCE_COUNTS = Object.freeze({
+    floor: 826,
+    lowWall: 66,
+    fence: 16,
+    boss: 3,
+    entrance: 6,
+    trainingDummy: 6,
+    archeryTarget: 3,
+    crate: 2,
+    weaponRack: 9,
+    routeDebris: 8,
+  });
+  const BLOOD_HALL_R2_LOW_ROOM_KEYS = new Set([
+    "37,20",
+    "38,20",
+    "37,21",
+    "38,21",
+    "36,22",
+    "37,22",
+    "38,22",
+    "39,22",
+    "36,23",
+    "37,23",
+    "38,23",
+    "39,23",
+    "37,24",
+    "38,24",
+  ]);
+  const BLOOD_HALL_R2_STAIR_KEYS = new Set([
+    "35,19",
+    "36,19",
+    "37,19",
+    "38,19",
+    "39,19",
+    "40,19",
+    "34,20",
+    "35,20",
+    "40,20",
+    "41,20",
+    "34,21",
+    "41,21",
+    "34,22",
+    "41,22",
+    "34,23",
+    "41,23",
+    "34,24",
+    "41,24",
+    "34,25",
+    "35,25",
+    "36,25",
+    "39,25",
+    "40,25",
+    "41,25",
+    "36,26",
+    "37,26",
+    "38,26",
+    "39,26",
+  ]);
+  const BLOOD_HALL_R2_LOWERED_SCREEN_Y = 18;
+  const BLOOD_HALL_R2_STAIR_SCREEN_Y = 9;
+
+  function dungeonZoneAt(x, y) {
+    const positionKey = `${x},${y}`;
+    if (
+      BLOOD_HALL_R2_LOW_ROOM_KEYS.has(positionKey) ||
+      BLOOD_HALL_R2_STAIR_KEYS.has(positionKey)
+    ) {
+      return "sunken_arena";
+    }
+    if (y <= 18) return "north_sanctum";
+    if (y >= 74) return "training_hall";
+    if (y >= 37 && y <= 56) return "arsenal_hall";
+    if (y >= 57 && y <= 73) return "keeper_hall";
+    return "blood_hall";
+  }
+
+  function dungeonTileTypeAt(x, y) {
+    const positionKey = `${x},${y}`;
+    if (BLOOD_HALL_R2_LOW_ROOM_KEYS.has(positionKey)) return "sunken";
+    if (BLOOD_HALL_R2_STAIR_KEYS.has(positionKey)) return "descendingStairs";
+    const zone = dungeonZoneAt(x, y);
+    if (zone === "north_sanctum") return "library";
+    if (zone === "training_hall") return "training";
+    if (zone === "arsenal_hall") return "arsenal";
+    return "stone";
+  }
+
   function createDungeonMap() {
-    const width = 70;
-    const height = 88;
-    const cells = Array.from({ length: height }, () => Array(width).fill(null));
-
-    const regions = [
-      {
-        id: "south_entry_loop",
-        type: "stone",
-        parts: [
-          { shape: "circle", centerX: 9, centerY: 82, radius: 3.4 },
-          { shape: "rect", x: 9, y: 80, width: 18, height: 4 },
-          { shape: "rect", x: 23, y: 76, width: 5, height: 8 },
-          { shape: "rect", x: 14, y: 75, width: 14, height: 4 },
-        ],
-      },
-      {
-        id: "training_complex",
-        type: "training",
-        parts: [
-          { shape: "rect", x: 22, y: 59, width: 10, height: 21 },
-          { shape: "rect", x: 13, y: 63, width: 10, height: 7 },
-          { shape: "rect", x: 16, y: 72, width: 6, height: 6 },
-          { shape: "rect", x: 31, y: 61, width: 6, height: 5 },
-          { shape: "rect", x: 31, y: 67, width: 12, height: 9 },
-        ],
-      },
-      {
-        id: "north_zigzag",
-        type: "stone",
-        parts: [
-          { shape: "rect", x: 24, y: 56, width: 4, height: 6 },
-          { shape: "rect", x: 24, y: 54, width: 11, height: 4 },
-          { shape: "rect", x: 31, y: 52, width: 4, height: 5 },
-        ],
-      },
-      {
-        id: "keeper_hall",
-        type: "stone",
-        parts: [
-          { shape: "rect", x: 25, y: 46, width: 13, height: 11 },
-          { shape: "rect", x: 36, y: 49, width: 3, height: 5 },
-          { shape: "rect", x: 38, y: 48, width: 7, height: 7 },
-          { shape: "rect", x: 29, y: 45, width: 7, height: 3 },
-        ],
-      },
-      {
-        id: "irregular_arsenal",
-        type: "arsenal",
-        parts: [
-          {
-            shape: "polygon",
-            points: [
-              [30, 31],
-              [43, 31],
-              [46, 34],
-              [42, 37],
-              [46, 40],
-              [43, 45],
-              [37, 45],
-              [35, 43],
-              [33, 47],
-              [29, 45],
-              [27, 42],
-              [29, 39],
-              [26, 36],
-              [29, 33],
-            ],
-          },
-          { shape: "rect", x: 25, y: 34, width: 5, height: 4 },
-          { shape: "rect", x: 39, y: 40, width: 7, height: 4 },
-          { shape: "circle", centerX: 34, centerY: 38, radius: 3.5 },
-        ],
-      },
-      {
-        id: "main_cross_hall",
-        type: "stone",
-        parts: [
-          { shape: "rect", x: 28, y: 25, width: 26, height: 5 },
-          { shape: "rect", x: 37, y: 23, width: 5, height: 3 },
-          { shape: "rect", x: 43, y: 29, width: 5, height: 3 },
-          { shape: "rect", x: 50, y: 24, width: 6, height: 7 },
-        ],
-      },
-      {
-        id: "east_round_hall",
-        type: "arsenal",
-        parts: [
-          { shape: "rect", x: 52, y: 25, width: 5, height: 5 },
-          { shape: "circle", centerX: 58, centerY: 27, radius: 7.2 },
-          { shape: "rect", x: 56, y: 20, width: 5, height: 3 },
-        ],
-      },
-      {
-        id: "library_gallery",
-        type: "library",
-        parts: [
-          { shape: "rect", x: 27, y: 10, width: 7, height: 18 },
-          { shape: "rect", x: 25, y: 13, width: 3, height: 4 },
-          { shape: "rect", x: 33, y: 15, width: 3, height: 4 },
-          { shape: "rect", x: 25, y: 19, width: 3, height: 4 },
-          { shape: "rect", x: 33, y: 22, width: 3, height: 4 },
-          { shape: "rect", x: 27, y: 24, width: 12, height: 5 },
-        ],
-      },
-      {
-        id: "north_round_sanctum",
-        type: "library",
-        parts: [
-          { shape: "circle", centerX: 30, centerY: 6, radius: 6.5 },
-          { shape: "rect", x: 28, y: 9, width: 5, height: 4 },
-        ],
-      },
-      {
-        id: "keeper_stair_link",
-        type: "stairs",
-        parts: [{ shape: "rect", x: 30, y: 42, width: 5, height: 6 }],
-      },
-      {
-        id: "arsenal_internal_stairs",
-        type: "stairs",
-        parts: [{ shape: "rect", x: 40, y: 28, width: 5, height: 8 }],
-      },
-    ];
-
-    function paintCell(x, y, type, zone) {
-      if (x < 0 || x >= width || y < 0 || y >= height) return;
-      cells[y][x] = { type, zone };
+    const width = 43;
+    const height = 102;
+    if (
+      BLOOD_HALL_R2_ROWS.length !== height ||
+      BLOOD_HALL_R2_ROWS.some((row) => row.length !== width)
+    ) {
+      throw new Error("血色大厅 R2 编译网格尺寸无效");
     }
-
-    function paintRect(x, y, rectWidth, rectHeight, type, zone) {
-      for (let row = y; row < y + rectHeight; row += 1) {
-        for (let column = x; column < x + rectWidth; column += 1) {
-          paintCell(column, row, type, zone);
-        }
-      }
-    }
-
-    function paintCircle(centerX, centerY, radius, type, zone) {
-      for (let y = Math.floor(centerY - radius); y <= Math.ceil(centerY + radius); y += 1) {
-        for (let x = Math.floor(centerX - radius); x <= Math.ceil(centerX + radius); x += 1) {
-          if (x < 0 || x >= width || y < 0 || y >= height) continue;
-          if (Math.hypot(x - centerX, y - centerY) <= radius) {
-            paintCell(x, y, type, zone);
-          }
-        }
-      }
-    }
-
-    function pointInPolygon(x, y, points) {
-      let inside = false;
-      for (let index = 0, previous = points.length - 1; index < points.length; previous = index, index += 1) {
-        const [currentX, currentY] = points[index];
-        const [previousX, previousY] = points[previous];
-        const crosses =
-          currentY > y !== previousY > y &&
-          x < ((previousX - currentX) * (y - currentY)) / (previousY - currentY) + currentX;
-        if (crosses) inside = !inside;
-      }
-      return inside;
-    }
-
-    function paintPolygon(points, type, zone) {
-      const xValues = points.map((point) => point[0]);
-      const yValues = points.map((point) => point[1]);
-      const minimumX = Math.floor(Math.min(...xValues));
-      const maximumX = Math.ceil(Math.max(...xValues));
-      const minimumY = Math.floor(Math.min(...yValues));
-      const maximumY = Math.ceil(Math.max(...yValues));
-      for (let y = minimumY; y <= maximumY; y += 1) {
-        for (let x = minimumX; x <= maximumX; x += 1) {
-          if (pointInPolygon(x + 0.5, y + 0.5, points)) paintCell(x, y, type, zone);
-        }
-      }
-    }
-
-    regions.forEach((region) => {
-      region.parts.forEach((part) => {
-        if (part.shape === "rect") {
-          paintRect(part.x, part.y, part.width, part.height, region.type, region.id);
-        }
-        if (part.shape === "circle") {
-          paintCircle(
-            part.centerX,
-            part.centerY,
-            part.radius,
-            region.type,
-            region.id,
-          );
-        }
-        if (part.shape === "polygon") {
-          paintPolygon(part.points, region.type, region.id);
-        }
-      });
-    });
-
-    const tiles = cells.map((row, y) =>
-      row.map((cell, x) => ({
-        exists: cell !== null,
-        type: cell?.type || "void",
-        zone: cell?.zone || null,
-        variant: (x * 5 + y * 3) % 4,
-      })),
+    const blockingSymbols = new Set(["w", "f", "d", "t", "c", "r", "x"]);
+    const tiles = BLOOD_HALL_R2_ROWS.map((row, y) =>
+      Array.from(row, (symbol, x) => {
+        const exists = symbol !== " ";
+        const positionKey = `${x},${y}`;
+        const elevation = BLOOD_HALL_R2_LOW_ROOM_KEYS.has(positionKey)
+          ? BLOOD_HALL_R2_LOWERED_SCREEN_Y
+          : BLOOD_HALL_R2_STAIR_KEYS.has(positionKey)
+            ? BLOOD_HALL_R2_STAIR_SCREEN_Y
+            : 0;
+        return {
+          exists,
+          type: exists ? dungeonTileTypeAt(x, y) : "void",
+          zone: exists ? dungeonZoneAt(x, y) : null,
+          variant: (x * 5 + y * 3) % 4,
+          sourceSymbol: symbol,
+          sourceBlocked: blockingSymbols.has(symbol),
+          elevation,
+        };
+      }),
     );
     return {
       width,
       height,
       tiles,
-      regions: regions.map((region) => ({
-        id: region.id,
-        type: region.type,
-        parts: region.parts.map((part) => ({
-          ...part,
-          ...(part.points
-            ? { points: part.points.map((point) => [...point]) }
-            : {}),
-        })),
-      })),
+      sourceCounts: BLOOD_HALL_R2_SOURCE_COUNTS,
+      heightModel: Object.freeze({
+        loweredScreenY: BLOOD_HALL_R2_LOWERED_SCREEN_Y,
+        stairScreenY: BLOOD_HALL_R2_STAIR_SCREEN_Y,
+        loweredTileCount: BLOOD_HALL_R2_LOW_ROOM_KEYS.size,
+        stairTileCount: BLOOD_HALL_R2_STAIR_KEYS.size,
+        center: Object.freeze({ x: 37.5, y: 22.5 }),
+      }),
     };
   }
 
   function createDungeonProps() {
-    const props = [
-      { type: "stoneWall", x: 8, y: 85, scale: 1, blocks: true, zone: "south_entry_loop", variant: 0 },
-      { type: "stoneDoorway", x: 9, y: 85, scale: 1, blocks: false, zone: "south_entry_loop", variant: 0 },
-      { type: "stoneWall", x: 10, y: 85, scale: 1, blocks: true, zone: "south_entry_loop", variant: 1 },
-      { type: "ruinedPillar", x: 7, y: 81, scale: 1, blocks: true, zone: "south_entry_loop" },
-      { type: "ruinedPillar", x: 11, y: 84, scale: 0.82, blocks: true, zone: "south_entry_loop" },
-      { type: "rubble", x: 13, y: 81, scale: 0.92, blocks: true, zone: "south_entry_loop" },
-      { type: "oldSign", x: 15, y: 83, scale: 0.95, blocks: true, zone: "south_entry_loop" },
-      { type: "doorFrame", x: 24, y: 76, scale: 1, blocks: false, zone: "training_complex" },
-
-      { type: "trainingDummy", x: 23, y: 67, scale: 1.28, blocks: true, zone: "training_complex" },
-      { type: "trainingDummy", x: 29, y: 71, scale: 1.32, blocks: true, zone: "training_complex" },
-      { type: "trainingDummy", x: 23, y: 75, scale: 1.25, blocks: true, zone: "training_complex" },
-      { type: "weaponRack", x: 17, y: 65, scale: 1.28, blocks: true, zone: "training_complex" },
-      { type: "supplyPile", x: 20, y: 74, scale: 0.95, blocks: false, zone: "training_complex" },
-      { type: "weaponPile", x: 35, y: 72, scale: 1, blocks: false, zone: "training_complex" },
-      { type: "doorFrame", x: 26, y: 78, scale: 1, blocks: false, zone: "training_complex" },
-
-      { type: "doorFrame", x: 31, y: 55, scale: 1, blocks: false, zone: "keeper_hall" },
-      { type: "doorFrame", x: 32, y: 46, scale: 1, blocks: false, zone: "keeper_hall" },
-      { type: "pillar", x: 26, y: 47, scale: 1.52, blocks: true, zone: "keeper_hall" },
-      { type: "pillar", x: 36, y: 47, scale: 1.48, blocks: true, zone: "keeper_hall" },
-      { type: "brazier", x: 27, y: 48, scale: 1, blocks: true, zone: "keeper_hall" },
-      { type: "brazier", x: 36, y: 54, scale: 1, blocks: true, zone: "keeper_hall" },
-      { type: "rubble", x: 42, y: 51, scale: 1, blocks: true, zone: "keeper_hall" },
-      { type: "stairs", x: 32, y: 43, scale: 1, blocks: false, zone: "keeper_stair_link" },
-
-      { type: "doorFrame", x: 34, y: 43, scale: 1, blocks: false, zone: "irregular_arsenal" },
-      { type: "weaponRack", x: 30, y: 35, scale: 1.28, blocks: true, zone: "irregular_arsenal" },
-      { type: "weaponRack", x: 41, y: 42, scale: 1.25, blocks: true, zone: "irregular_arsenal" },
-      { type: "forgeBase", x: 29, y: 42, scale: 1, blocks: true, zone: "irregular_arsenal" },
-      { type: "weaponPile", x: 34, y: 35, scale: 1, blocks: false, zone: "irregular_arsenal" },
-      { type: "rubble", x: 27, y: 36, scale: 0.9, blocks: false, zone: "irregular_arsenal" },
-      { type: "stairs", x: 42, y: 31, scale: 1, blocks: false, zone: "arsenal_internal_stairs" },
-
-      { type: "doorFrame", x: 40, y: 30, scale: 1, blocks: false, zone: "main_cross_hall" },
-      { type: "doorFrame", x: 53, y: 27, scale: 1, blocks: false, zone: "main_cross_hall" },
-      { type: "pillar", x: 38, y: 24, scale: 1.46, blocks: true, zone: "main_cross_hall" },
-      { type: "pillar", x: 48, y: 29, scale: 1.48, blocks: true, zone: "main_cross_hall" },
-      { type: "oldSign", x: 44, y: 29, scale: 0.88, blocks: false, zone: "main_cross_hall" },
-      { type: "rubble", x: 51, y: 25, scale: 0.78, blocks: false, zone: "main_cross_hall" },
-
-      { type: "pillar", x: 55, y: 23, scale: 1.48, blocks: true, zone: "east_round_hall" },
-      { type: "pillar", x: 61, y: 31, scale: 1.48, blocks: true, zone: "east_round_hall" },
-      { type: "pillar", x: 58, y: 21, scale: 1.46, blocks: true, zone: "east_round_hall" },
-      { type: "pillar", x: 63, y: 25, scale: 1.48, blocks: true, zone: "east_round_hall" },
-      { type: "pillar", x: 63, y: 29, scale: 1.46, blocks: true, zone: "east_round_hall" },
-      { type: "pillar", x: 58, y: 33, scale: 1.5, blocks: true, zone: "east_round_hall" },
-      { type: "pillar", x: 54, y: 31, scale: 1.46, blocks: true, zone: "east_round_hall" },
-      { type: "brazier", x: 61, y: 23, scale: 1.05, blocks: true, zone: "east_round_hall" },
-      { type: "brazier", x: 55, y: 31, scale: 1.02, blocks: true, zone: "east_round_hall" },
-      { type: "weaponRack", x: 64, y: 27, scale: 1.26, blocks: true, zone: "east_round_hall" },
-
-      { type: "doorFrame", x: 30, y: 24, scale: 1, blocks: false, zone: "library_gallery" },
-      { type: "doorFrame", x: 30, y: 10, scale: 1, blocks: false, zone: "library_gallery" },
-      { type: "bookshelf", x: 26, y: 15, scale: 1, blocks: true, zone: "library_gallery" },
-      { type: "bookshelf", x: 34, y: 17, scale: 1, blocks: true, zone: "library_gallery" },
-      { type: "bookshelf", x: 26, y: 21, scale: 1, blocks: true, zone: "library_gallery" },
-      { type: "bookshelf", x: 34, y: 24, scale: 1, blocks: true, zone: "library_gallery" },
-      { type: "readingDesk", x: 25, y: 16, scale: 1, blocks: true, zone: "library_gallery" },
-      { type: "readingDesk", x: 35, y: 23, scale: 1, blocks: true, zone: "library_gallery" },
-      { type: "loosePages", x: 31, y: 20, scale: 1, blocks: false, zone: "library_gallery" },
-      { type: "loosePages", x: 29, y: 16, scale: 0.9, blocks: false, zone: "library_gallery" },
-      { type: "candleStand", x: 27, y: 12, scale: 1, blocks: false, zone: "library_gallery" },
-      { type: "candleStand", x: 33, y: 20, scale: 1, blocks: false, zone: "library_gallery" },
-
-      { type: "pillar", x: 26, y: 4, scale: 1.5, blocks: true, zone: "north_round_sanctum" },
-      { type: "pillar", x: 34, y: 7, scale: 1.5, blocks: true, zone: "north_round_sanctum" },
-      { type: "obsidianPedestal", x: 26, y: 8, scale: 1, blocks: true, zone: "north_round_sanctum" },
-      { type: "obsidianPedestal", x: 34, y: 4, scale: 1, blocks: true, zone: "north_round_sanctum" },
-      { type: "brazier", x: 30, y: 1, scale: 1.08, blocks: true, zone: "north_round_sanctum" },
-      { type: "brazier", x: 25, y: 6, scale: 1, blocks: true, zone: "north_round_sanctum" },
-      { type: "brazier", x: 35, y: 6, scale: 1, blocks: true, zone: "north_round_sanctum" },
-      { type: "arcaneMark", x: 30, y: 6, scale: 1.35, blocks: false, zone: "north_round_sanctum" },
-      { type: "brokenRing", x: 31, y: 6, scale: 1.1, blocks: false, zone: "north_round_sanctum" },
-    ];
-
-    const trainingObstacles = [
-      [22, 75, "weaponRack"],
-      [24, 75, "trainingDummy"],
-      [25, 75, "trainingDummy"],
-      [26, 75, "weaponRack"],
-      [25, 69, "weaponRack"],
-      [26, 69, "trainingDummy"],
-      [27, 69, "trainingDummy"],
-      [28, 69, "weaponRack"],
-      [29, 69, "trainingDummy"],
-      [30, 69, "trainingDummy"],
-      [31, 69, "weaponRack"],
-    ].map(([x, y, type], index) => ({
-      type,
-      x,
-      y,
-      scale: type === "trainingDummy" ? 1.3 : 1.25,
-      blocks: true,
-      zone: "training_complex",
-      routeObstacleGroup: "training",
-      variant: index % 3,
-    }));
-
-    const arsenalObstacles = [
-      ...Array.from({ length: 12 }, (_, index) => [31 + index, 38]),
-      ...Array.from({ length: 6 }, (_, index) => [39 + index, 35]),
-    ].map(([x, y], index) => ({
-      type: index % 4 === 0 ? "storageShelf" : "crateStack",
-      x,
-      y,
-      scale: index % 4 === 0 ? 1 : 0.95,
-      blocks: true,
-      zone: "irregular_arsenal",
-      routeObstacleGroup: "arsenal",
-      variant: index % 4,
-    }));
-
-    const libraryObstacles = [
-      [30, 23],
-      [31, 23],
-      [32, 23],
-      [28, 18],
-      [29, 18],
-      [30, 18],
-      [30, 13],
-      [31, 13],
-      [32, 13],
-    ].map(([x, y], index) => ({
-      type: "bookshelf",
-      x,
-      y,
-      scale: 1,
-      blocks: true,
-      zone: "library_gallery",
-      routeObstacleGroup: "library",
-      variant: index % 3,
-    }));
-
-    return [...props, ...trainingObstacles, ...arsenalObstacles, ...libraryObstacles];
+    const propBySymbol = Object.freeze({
+      w: Object.freeze({ type: "lowWall", scale: 1, label: "矮墙" }),
+      f: Object.freeze({ type: "ironFence", scale: 1, label: "围栏" }),
+      d: Object.freeze({ type: "trainingDummy", scale: 1.2, label: "假人" }),
+      t: Object.freeze({ type: "archeryTarget", scale: 1.08, label: "靶子" }),
+      c: Object.freeze({ type: "crateStack", scale: 0.92, label: "箱子" }),
+      r: Object.freeze({ type: "weaponRack", scale: 1.16, label: "武器架" }),
+      x: Object.freeze({ type: "routeDebris", scale: 1, label: "堵路杂物" }),
+    });
+    const props = [];
+    BLOOD_HALL_R2_ROWS.forEach((row, y) => {
+      Array.from(row).forEach((symbol, x) => {
+        const definition = propBySymbol[symbol];
+        if (!definition) return;
+        props.push({
+          type: definition.type,
+          x,
+          y,
+          scale: definition.scale,
+          blocks: true,
+          zone: dungeonZoneAt(x, y),
+          variant: (x * 7 + y * 11) % 4,
+          sourceLabel: definition.label,
+        });
+      });
+    });
+    return props;
   }
+
 
   function createDungeon(canvasWidth) {
     const roomOrder = ["lower_gate_room", "ember_gallery_room", "deep_sanctum_room"];
     const routeNodes = {
       entrance_route: {
         id: "entrance_route",
-        name: "南侧回折入口",
+        name: "血色大厅入口",
         kind: "route",
-        position: { x: 24, y: 81 },
-        exits: [{ to: "training_route" }],
-      },
-      training_route: {
-        id: "training_route",
-        name: "训练场",
-        kind: "route",
-        position: { x: 26, y: 64 },
-        exits: [{ to: "zigzag_route" }],
-      },
-      zigzag_route: {
-        id: "zigzag_route",
-        name: "北侧折线路径",
-        kind: "route",
-        position: { x: 31, y: 55 },
+        position: { x: 3, y: 99 },
         exits: [{ to: "lower_gate_room" }],
       },
       lower_gate_room: {
         id: "lower_gate_room",
-        name: "北侧守门厅",
+        name: "血色训练厅",
         kind: "boss",
         bossId: "graystone_keeper",
-        position: { x: 31, y: 51 },
+        position: { x: 23, y: 62 },
         engagement: {
           bossDirection: { x: 0, y: 1 },
           entryDirection: { x: 0, y: 1 },
-          position: { x: 31, y: 52 },
+          position: { x: 23, y: 63 },
           memberDirection: { x: 0, y: -1 },
         },
-        exits: [{ to: "stairs_route" }],
-      },
-      stairs_route: {
-        id: "stairs_route",
-        name: "北端楼梯连接",
-        kind: "route",
-        position: { x: 32, y: 43 },
-        exits: [{ to: "arsenal_route" }],
-      },
-      arsenal_route: {
-        id: "arsenal_route",
-        name: "步兵武器库",
-        kind: "route",
-        position: { x: 34, y: 39 },
-        exits: [{ to: "arsenal_stairs_route" }],
-      },
-      arsenal_stairs_route: {
-        id: "arsenal_stairs_route",
-        name: "武器库内部楼梯",
-        kind: "route",
-        position: { x: 42, y: 32 },
         exits: [{ to: "main_fork" }],
       },
       main_fork: {
         id: "main_fork",
-        name: "主走廊分叉",
+        name: "血色大厅分叉",
         kind: "route",
-        position: { x: 42, y: 27 },
+        position: { x: 37, y: 29 },
         exits: [
           { to: "ember_gallery_room", unlessCleared: ["ember_gallery_room"] },
-          { to: "library_turn_route", requiresCleared: ["ember_gallery_room"] },
+          { to: "deep_sanctum_room", requiresCleared: ["ember_gallery_room"] },
         ],
       },
       ember_gallery_room: {
         id: "ember_gallery_room",
-        name: "圆形武备大厅",
+        name: "下沉围栏厅",
         kind: "boss",
         bossId: "furnace_colossus",
-        position: { x: 58, y: 27 },
+        position: { x: 37, y: 23 },
         engagement: {
           bossDirection: { x: -1, y: 0 },
           entryDirection: { x: -1, y: 0 },
-          position: { x: 57, y: 27 },
+          position: { x: 36, y: 23 },
           memberDirection: { x: 1, y: 0 },
         },
         exits: [{ to: "main_fork" }],
       },
-      library_turn_route: {
-        id: "library_turn_route",
-        name: "西转图书馆",
-        kind: "route",
-        position: { x: 30, y: 27 },
-        exits: [{ to: "library_route" }],
-      },
-      library_route: {
-        id: "library_route",
-        name: "图书馆长廊",
-        kind: "route",
-        position: { x: 30, y: 14 },
-        exits: [{ to: "deep_sanctum_room" }],
-      },
       deep_sanctum_room: {
         id: "deep_sanctum_room",
-        name: "顶部秘法圆厅",
+        name: "北端血色圆厅",
         kind: "boss",
         bossId: "stonecrown_lord",
-        position: { x: 30, y: 6 },
+        position: { x: 15, y: 3 },
         engagement: {
           bossDirection: { x: 0, y: 1 },
           entryDirection: { x: 0, y: 1 },
-          position: { x: 30, y: 7 },
+          position: { x: 15, y: 4 },
           memberDirection: { x: 0, y: -1 },
         },
         final: true,
         exits: [],
       },
     };
+    const map = createDungeonMap();
+    const props = createDungeonProps();
     const dungeon = {
-      id: "graystone_trial",
-      name: "灰岩试炼",
+      id: "blood_hall_r2",
+      name: "血色大厅",
       orientation: Object.freeze({
         north: "-y",
         east: "+x",
@@ -604,12 +472,23 @@
         west: "-x",
       }),
       origin: { x: canvasWidth / 2, y: 0 },
-      map: createDungeonMap(),
-      props: createDungeonProps(),
-      entry: { x: 9, y: 82 },
+      map,
+      props,
+      entry: { x: 3, y: 99 },
       entranceRoomId: "entrance_route",
       roomOrder,
       routeNodes,
+      source: Object.freeze({
+        taskId: "T-20260804-010",
+        workbook: "art/maps/source/blood-hall-map-r2.xlsx",
+        sourcePath: "C:/Users/winly/Downloads/血色大厅地图.xlsx",
+        sha256: "3ed310070b04433573088df1f134305d40242a44e46197a811c21f4e19451951",
+        range: "Sheet1!C2:AS103",
+        normalizedOrigin: "C2=(0,0)",
+        width: 43,
+        height: 102,
+        counts: BLOOD_HALL_R2_SOURCE_COUNTS,
+      }),
     };
     const validation = validateDungeon(dungeon);
     if (!validation.ok) {
