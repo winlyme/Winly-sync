@@ -15,7 +15,7 @@
 Winly-sync/
 ├─ AGENTS.md
 ├─ README.md
-└─ isometric-web-prototype/
+└─ projects/
 ```
 
 各项目的具体说明、入口和维护规则由对应项目目录自行记录，根目录 README 不重复展开。
