@@ -17,6 +17,454 @@ local module = {
 
 CCS.Modules[module.Name] = module
 
+-- MoP uses Blizzard's native stat rows, so the Retail row handlers are not
+-- available here.  Map the native labels to the four useful MoP stat groups
+-- and feed them into the shared equipment-highlight renderer.
+local MOP_STAT_HIGHLIGHT_GROUPS = {
+    {
+        key = "secondary_crit",
+        statKeys = { "CRIT_RATING" },
+        icon = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\crit.png",
+        aliases = {},
+    },
+    {
+        key = "secondary_haste",
+        statKeys = { "HASTE_RATING" },
+        icon = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\haste.png",
+        aliases = {},
+    },
+    {
+        key = "secondary_mastery",
+        statKeys = { "MASTERY_RATING" },
+        icon = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\mastery.png",
+        aliases = {},
+    },
+    {
+        key = "secondary_spirit_hit",
+        statKeys = { "SPIRIT", "HIT_RATING" },
+        icon = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\versatility.png",
+        aliases = {},
+    },
+}
+
+-- Read the final values shown by the equipped-item tooltip.  Unlike
+-- GetItemStats on MoP Classic, these lines already include the current item
+-- level, reforging, gems and enchants.
+local MOP_TOOLTIP_STAT_ALIASES = {
+    CRIT_RATING = {
+        "暴击", "爆击", "Critical Strike", ITEM_MOD_CRIT_RATING_SHORT, STAT_CRITICAL_STRIKE,
+    },
+    HASTE_RATING = {
+        "急速", "Haste", ITEM_MOD_HASTE_RATING_SHORT, STAT_HASTE,
+    },
+    MASTERY_RATING = {
+        "精通", "Mastery", ITEM_MOD_MASTERY_RATING_SHORT, STAT_MASTERY,
+    },
+    SPIRIT = {
+        "精神", "Spirit", ITEM_MOD_SPIRIT_SHORT, STAT_SPIRIT, SPELL_STAT5_NAME,
+    },
+    HIT_RATING = {
+        "命中", "Hit Rating", "Hit", ITEM_MOD_HIT_RATING_SHORT, STAT_HIT_CHANCE,
+    },
+}
+
+local function NormalizeMOPTooltipStatText(text)
+    if type(text) ~= "string" then return nil end
+    text = text:gsub("|A.-|a", "")
+               :gsub("|c%x%x%x%x%x%x%x%x", "")
+               :gsub("|r", "")
+               :gsub(",", "")
+               :gsub("，", "")
+               :gsub("＋", "+")
+               :gsub("%s+", " ")
+               :gsub("^%s+", "")
+               :gsub("%s+$", "")
+               :lower()
+    return text ~= "" and text or nil
+end
+
+local function ExtractMOPTooltipStatValue(text, alias)
+    alias = NormalizeMOPTooltipStatText(alias)
+    if not text or not alias then return nil end
+
+    local aliasStart, aliasEnd = text:find(alias, 1, true)
+    if not aliasStart then return nil end
+
+    -- In both "+527 Haste" and "+320 Haste / +160 Spirit", the closest
+    -- signed number before the stat name belongs to that stat.
+    local valueBefore, separator = text:sub(1, aliasStart - 1):match("%+%s*(%d+)([^%+]*)$")
+    if valueBefore and separator and separator:match("^[%s%p]*$") then
+        return tonumber(valueBefore)
+    end
+
+    -- Some locales render the name first: "Haste: +527".
+    local valueAfter = text:sub(aliasEnd + 1):match("^%s*[:：]?%s*%+%s*(%d+)")
+    return tonumber(valueAfter)
+end
+
+local function NewMOPTooltipStatTotals()
+    return {
+        CRIT_RATING = 0,
+        HASTE_RATING = 0,
+        MASTERY_RATING = 0,
+        SPIRIT = 0,
+        HIT_RATING = 0,
+    }
+end
+
+local function AddMOPTooltipStatLine(totals, rawText)
+    local text = NormalizeMOPTooltipStatText(rawText)
+    if not text then return end
+
+    for statKey, aliases in pairs(MOP_TOOLTIP_STAT_ALIASES) do
+        for _, alias in ipairs(aliases) do
+            local value = ExtractMOPTooltipStatValue(text, alias)
+            if value then
+                totals[statKey] = totals[statKey] + value
+                break
+            end
+        end
+    end
+end
+
+local function GetMOPStatScanTooltip()
+    local tooltip = _G.CCS_MOPStatScanTooltip
+    if tooltip then return tooltip end
+    if type(CreateFrame) ~= "function" then return nil end
+
+    tooltip = CreateFrame(
+        "GameTooltip",
+        "CCS_MOPStatScanTooltip",
+        UIParent,
+        "GameTooltipTemplate"
+    )
+    tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    return tooltip
+end
+
+function CCS:GetMOPTooltipStatTotalsBySlot()
+    -- MoP Classic does not consistently expose C_TooltipInfo.  Scan the
+    -- native equipped-item tooltip instead so upgraded and reforged values
+    -- are read exactly as the game displays them.
+    local tooltip = GetMOPStatScanTooltip()
+    if not tooltip then return nil end
+
+    local tooltipName = tooltip:GetName()
+    local totalsBySlot = {}
+
+    for slot = 1, 17 do
+        if GetInventoryItemLink("player", slot) then
+            tooltip:Hide()
+            tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+            tooltip:ClearLines()
+
+            local ok = pcall(tooltip.SetInventoryItem, tooltip, "player", slot)
+            if ok and tooltip:NumLines() > 0 then
+                local totals = NewMOPTooltipStatTotals()
+
+                for lineIndex = 1, tooltip:NumLines() do
+                    local left = _G[tooltipName .. "TextLeft" .. lineIndex]
+                    local right = _G[tooltipName .. "TextRight" .. lineIndex]
+                    AddMOPTooltipStatLine(totals, left and left:GetText())
+                    AddMOPTooltipStatLine(totals, right and right:GetText())
+                end
+
+                totalsBySlot[slot] = totals
+            end
+        end
+    end
+
+    tooltip:Hide()
+    return next(totalsBySlot) and totalsBySlot or nil
+end
+
+local function NormalizeMOPStatLabel(text)
+    if type(text) ~= "string" then return nil end
+    text = text:gsub("|A.-|a", "")
+               :gsub("|c%x%x%x%x%x%x%x%x", "")
+               :gsub("|r", "")
+               :gsub("：", ":")
+               :gsub("（", "(")
+               :gsub("）", ")")
+               :gsub("%s+", " ")
+               :gsub("^%s+", "")
+               :gsub("%s+$", "")
+               :gsub(":$", "")
+               :lower()
+    return text ~= "" and text or nil
+end
+
+local function AddMOPStatAliases(groupIndex, ...)
+    local group = MOP_STAT_HIGHLIGHT_GROUPS[groupIndex]
+    for index = 1, select("#", ...) do
+        local alias = NormalizeMOPStatLabel(select(index, ...))
+        if alias then
+            group.aliases[alias] = true
+        end
+    end
+end
+
+AddMOPStatAliases(1,
+    ITEM_MOD_CRIT_RATING_SHORT, STAT_CRITICAL_STRIKE,
+    MELEE_CRIT_CHANCE, RANGED_CRIT_CHANCE, SPELL_CRIT_CHANCE,
+    COMBAT_RATING_NAME9, COMBAT_RATING_NAME10, COMBAT_RATING_NAME11,
+    "暴击", "爆击", "近战暴击", "远程暴击", "法术暴击",
+    "Critical Strike", "Melee Critical Strike", "Ranged Critical Strike", "Spell Critical Strike")
+
+AddMOPStatAliases(2,
+    ITEM_MOD_HASTE_RATING_SHORT, STAT_HASTE, MELEE_HASTE, RANGED_HASTE, SPELL_HASTE,
+    COMBAT_RATING_NAME18, COMBAT_RATING_NAME19, COMBAT_RATING_NAME20,
+    "急速", "近战急速", "远程急速", "法术急速",
+    "Haste", "Melee Haste", "Ranged Haste", "Spell Haste")
+
+AddMOPStatAliases(3,
+    ITEM_MOD_MASTERY_RATING_SHORT, STAT_MASTERY, COMBAT_RATING_NAME26,
+    "精通", "Mastery")
+
+AddMOPStatAliases(4,
+    ITEM_MOD_SPIRIT_SHORT, STAT_SPIRIT, SPELL_STAT5_NAME,
+    ITEM_MOD_HIT_RATING_SHORT, STAT_HIT_CHANCE,
+    MELEE_HIT_CHANCE, RANGED_HIT_CHANCE, SPELL_HIT_CHANCE,
+    COMBAT_RATING_NAME6, COMBAT_RATING_NAME7, COMBAT_RATING_NAME8,
+    "精神", "命中", "近战命中", "远程命中", "法术命中",
+    "Spirit", "Hit", "Hit Chance", "Melee Hit", "Ranged Hit", "Spell Hit")
+
+local function MOPStatHighlightsEnabled()
+    return option("show_stathighlights") ~= false
+end
+
+local function MOPStatLabelMatches(label, alias)
+    if label == alias then return true end
+    if label:sub(1, #alias) == alias then
+        local nextCharacter = label:sub(#alias + 1, #alias + 1)
+        return nextCharacter == " " or nextCharacter == ":" or nextCharacter == "("
+    end
+    return false
+end
+
+local function GetMOPStatGroupForText(text)
+    local label = NormalizeMOPStatLabel(text)
+    if not label then return nil end
+
+    for _, group in ipairs(MOP_STAT_HIGHLIGHT_GROUPS) do
+        for alias in pairs(group.aliases) do
+            if MOPStatLabelMatches(label, alias) then
+                return group
+            end
+        end
+    end
+end
+
+local function GetMOPStatGroupForFrame(frame)
+    if not frame then return nil end
+
+    if type(frame.GetText) == "function" then
+        local group = GetMOPStatGroupForText(frame:GetText())
+        if group then return group end
+    end
+
+    if type(frame.GetRegions) == "function" then
+        for _, region in ipairs({ frame:GetRegions() }) do
+            if type(region.GetText) == "function" then
+                local group = GetMOPStatGroupForText(region:GetText())
+                if group then return group end
+            end
+        end
+    end
+end
+
+local function ClearMOPStatHighlightSelection()
+    CCS.activeClickedRow = nil
+    CCS.mopActiveStatGroup = nil
+    CCS.mopHoveredStatRow = nil
+    CCS.mopHoveredStatGroup = nil
+    CCS:HideAllStatHighlights()
+end
+
+local function FrameSupportsScript(frame, scriptName)
+    if not frame or type(frame.HookScript) ~= "function" then return false end
+    if type(frame.HasScript) == "function" then
+        return frame:HasScript(scriptName)
+    end
+    return true
+end
+
+local function HookMOPStatFrame(frame)
+    if frame.CCSMOPStatHighlightHooked or type(frame.GetRegions) ~= "function" then return end
+
+    local hasTextRegion = false
+    for _, region in ipairs({ frame:GetRegions() }) do
+        if type(region.GetText) == "function" then
+            hasTextRegion = true
+            break
+        end
+    end
+    if not hasTextRegion or not FrameSupportsScript(frame, "OnEnter") then return end
+
+    frame:HookScript("OnEnter", function(self)
+        if not MOPStatHighlightsEnabled() then return end
+        local group = GetMOPStatGroupForFrame(self)
+        if not group then return end
+
+        CCS.mopHoveredStatRow = self
+        CCS.mopHoveredStatGroup = group
+        if not CCS.activeClickedRow then
+            CCS:ShowStatHighlights(group)
+        end
+    end)
+
+    if FrameSupportsScript(frame, "OnLeave") then
+        frame:HookScript("OnLeave", function(self)
+            if CCS.mopHoveredStatRow == self then
+                CCS.mopHoveredStatRow = nil
+                CCS.mopHoveredStatGroup = nil
+            end
+            if not CCS.activeClickedRow then
+                CCS:HideAllStatHighlights()
+            end
+        end)
+    end
+
+    if FrameSupportsScript(frame, "OnMouseDown") then
+        frame:HookScript("OnMouseDown", function(self)
+            if not MOPStatHighlightsEnabled() then return end
+            local group = GetMOPStatGroupForFrame(self)
+            if not group then return end
+
+            if CCS.activeClickedRow == self and CCS.mopActiveStatGroup == group then
+                CCS.activeClickedRow = nil
+                CCS.mopActiveStatGroup = nil
+                CCS:HideAllStatHighlights()
+                return
+            end
+
+            CCS.activeClickedRow = self
+            CCS.mopActiveStatGroup = group
+            CCS:ShowStatHighlights(group)
+        end)
+    end
+
+    frame.CCSMOPStatHighlightHooked = true
+end
+
+local function HookMOPStatRows()
+    if not CharacterStatsPane then return end
+    local visited = {}
+
+    local function WalkFrameTree(frame)
+        if not frame or visited[frame] then return end
+        visited[frame] = true
+        HookMOPStatFrame(frame)
+        if type(frame.GetChildren) == "function" then
+            for _, child in ipairs({ frame:GetChildren() }) do
+                WalkFrameTree(child)
+            end
+        end
+    end
+
+    for categoryIndex = 1, 7 do
+        WalkFrameTree(_G["CharacterStatsPaneCategory" .. categoryIndex])
+    end
+
+    local scrollBox = CharacterStatsPane.ScrollBox
+    if scrollBox and type(scrollBox.GetFrames) == "function" then
+        for _, frame in ipairs(scrollBox:GetFrames()) do
+            WalkFrameTree(frame)
+        end
+    end
+end
+
+local function ScheduleMOPStatRowHooks()
+    if CCS.mopStatHookPending then return end
+    CCS.mopStatHookPending = true
+    C_Timer.After(0, function()
+        CCS.mopStatHookPending = false
+        HookMOPStatRows()
+    end)
+    C_Timer.After(0.2, HookMOPStatRows)
+end
+
+local function GetMOPMouseFocus()
+    if type(GetMouseFoci) == "function" then
+        local foci = GetMouseFoci()
+        return foci and foci[1]
+    end
+    if type(GetMouseFocus) == "function" then
+        return GetMouseFocus()
+    end
+end
+
+local function FindMOPStatGroupNearFrame(frame)
+    local ancestor = frame
+    local insideStatsPane = false
+    for _ = 1, 12 do
+        if not ancestor then break end
+        if ancestor == CharacterStatsPane then
+            insideStatsPane = true
+            break
+        end
+        ancestor = type(ancestor.GetParent) == "function" and ancestor:GetParent() or nil
+    end
+    if not insideStatsPane then return nil end
+
+    local current = frame
+    for _ = 1, 8 do
+        if not current then break end
+
+        local group = GetMOPStatGroupForFrame(current)
+        if group then return group, current end
+
+        if type(current.GetChildren) == "function" then
+            for _, child in ipairs({current:GetChildren()}) do
+                group = GetMOPStatGroupForFrame(child)
+                if group then return group, current end
+            end
+        end
+
+        if current == CharacterStatsPane then break end
+        current = type(current.GetParent) == "function" and current:GetParent() or nil
+    end
+end
+
+local function EnableMOPStatHoverTracker()
+    if not CharacterStatsPane or CharacterStatsPane.CCSMOPHoverTracker then return end
+
+    local elapsedTotal = 0
+    CharacterStatsPane:HookScript("OnUpdate", function(self, elapsed)
+        if not self:IsVisible() or not MOPStatHighlightsEnabled() then return end
+
+        elapsedTotal = elapsedTotal + elapsed
+        if elapsedTotal < .05 then return end
+        elapsedTotal = 0
+
+        if CCS.activeClickedRow then return end
+
+        local focus = GetMOPMouseFocus()
+        local group, row = FindMOPStatGroupNearFrame(focus)
+        if group then
+            if CCS.mopHoveredStatGroup ~= group then
+                CCS.mopHoveredStatGroup = group
+                CCS.mopHoveredStatRow = row
+                CCS:ShowStatHighlights(group)
+            end
+        elseif CCS.mopHoveredStatGroup then
+            CCS.mopHoveredStatGroup = nil
+            CCS.mopHoveredStatRow = nil
+            CCS:HideAllStatHighlights()
+        end
+    end)
+
+    CharacterStatsPane:HookScript("OnHide", function()
+        if not CCS.activeClickedRow then
+            CCS.mopHoveredStatGroup = nil
+            CCS.mopHoveredStatRow = nil
+            CCS:HideAllStatHighlights()
+        end
+    end)
+
+    CharacterStatsPane.CCSMOPHoverTracker = true
+end
+
 local modbg = _G["CharacterModelFramebg"] or CreateFrame("Frame", "CharacterModelFramebg", CharacterModelScene)
 local modtex = _G["CharacterModelFramebgtex"] or modbg:CreateTexture("CharacterModelFramebgtex", "BACKGROUND")    
 local modtex2 = _G["CharacterModelFramebgtex2"] or modbg:CreateTexture("CharacterModelFramebgtex2", "ARTWORK")    
@@ -92,6 +540,8 @@ end
 local function InitStats()
     if not CharacterStatsPane then return end
 
+    EnableMOPStatHoverTracker()
+
     CharacterStatsPane.ScrollBox:ClearAllPoints()
     CharacterStatsPane.ScrollBox:SetPoint("TOPLEFT", CharacterStatsPane, "TOPLEFT", 14, -25)
     CharacterStatsPane.ScrollBox:SetPoint("BOTTOMRIGHT", CharacterStatsPane, "BOTTOMRIGHT", -4, 0)
@@ -148,6 +598,25 @@ local function InitStats()
 
             btnfont1:SetText(format("|cFF%s%s / %s|r", Color, avgItemLevelEquipped, avgItemLevel))
         end)
+
+        local scrollBox = CharacterStatsPane.ScrollBox
+        if scrollBox and type(scrollBox.RegisterCallback) == "function"
+            and BaseScrollBoxEvents and BaseScrollBoxEvents.OnLayout
+            and not scrollBox.CCSMOPStatHighlightCallback then
+            scrollBox:RegisterCallback(BaseScrollBoxEvents.OnLayout, ScheduleMOPStatRowHooks)
+            scrollBox.CCSMOPStatHighlightCallback = true
+        end
+
+        if CharacterFrame and not CharacterFrame.CCSMOPStatHighlightHideHook then
+            CharacterFrame:HookScript("OnHide", ClearMOPStatHighlightSelection)
+            CharacterFrame.CCSMOPStatHighlightHideHook = true
+        end
+
+        if MOPStatHighlightsEnabled() then
+            ScheduleMOPStatRowHooks()
+        else
+            ClearMOPStatHighlightSelection()
+        end
     
     
 end
@@ -171,10 +640,156 @@ local function hookfix()
     
 end
 
+local function StyleMOPCharacterTab(tab)
+    do return end -- Use Blizzard's native MoP tab template.
+    if not tab then return end
+
+    local tabName = tab.GetName and tab:GetName()
+    local text = tab.Text or (tabName and _G[tabName.."Text"])
+
+    local originalTextureNames = {
+        "Left", "Middle", "Right",
+        "LeftActive", "MiddleActive", "RightActive",
+        "LeftDisabled", "MiddleDisabled", "RightDisabled",
+        "LeftHighlight", "MiddleHighlight", "RightHighlight",
+    }
+    for _, textureName in ipairs(originalTextureNames) do
+        local texture = tab[textureName] or (tabName and _G[tabName..textureName])
+        if texture and texture.SetAlpha and texture.Hide
+            and texture ~= tab.CCSBackground and texture ~= tab.CCSHighlight then
+            texture:SetAlpha(0)
+            texture:Hide()
+        end
+    end
+
+    if not tab.CCSMOPArtHidden then
+        -- MoP's selected tab is the button's disabled state and uses another
+        -- set of textures. Hide every original texture instead of trying to
+        -- guess which state Blizzard currently has visible.
+        for _, region in ipairs({tab:GetRegions()}) do
+            if region.IsObjectType and region:IsObjectType("Texture") then
+                region:SetAlpha(0)
+            end
+        end
+
+        tab.CCSBackground = tab:CreateTexture(nil, "ARTWORK", nil, 7)
+        tab.CCSBackground:SetAllPoints(tab)
+        tab.CCSBackground:SetTexture("Interface\\Masks\\SquareMask.BLP")
+
+        tab.CCSHighlight = tab:CreateTexture(nil, "HIGHLIGHT", nil, 1)
+        tab.CCSHighlight:SetAllPoints(tab)
+        tab.CCSHighlight:SetColorTexture(.28, .28, .28, .55)
+        tab:SetHighlightTexture(tab.CCSHighlight, "ADD")
+
+        tab.CCSMOPArtHidden = true
+    end
+
+    tab.CCSBackground:SetDrawLayer("ARTWORK", 7)
+
+    local selected = tab.IsEnabled and not tab:IsEnabled()
+    if tab.CCSBackground then
+        if selected then
+            tab.CCSBackground:SetGradient("Vertical",
+                CreateColor(.25, .25, .25, 1), CreateColor(.04, .04, .04, 1))
+        else
+            tab.CCSBackground:SetGradient("Vertical",
+                CreateColor(.06, .06, .06, .96), CreateColor(0, 0, 0, .96))
+        end
+    end
+
+    if text then
+        text:SetAlpha(1)
+        text:ClearAllPoints()
+        text:SetPoint("CENTER", tab, "CENTER", 0, 0)
+        if text.SetDrawLayer then
+            text:SetDrawLayer("OVERLAY", 7)
+        end
+        text:SetTextColor(1, 1, 1, 1)
+    end
+end
+
+local function StyleMOPCharacterTabs()
+    do return end -- Do not resize or re-anchor legacy character tabs.
+    local tab1 = _G.CharacterFrameTab1
+    local tab2 = _G.CharacterFrameTab2
+    local tab3 = _G.CharacterFrameTab3
+
+    StyleMOPCharacterTab(tab1)
+    StyleMOPCharacterTab(tab2)
+    StyleMOPCharacterTab(tab3)
+
+    for _, tab in ipairs({tab1, tab2, tab3}) do
+        if tab then
+            tab:SetWidth(80)
+            tab:SetHeight(32)
+            if not tab.CCSMOPClickHooked then
+                tab:HookScript("OnClick", function()
+                    C_Timer.After(0, StyleMOPCharacterTabs)
+                    C_Timer.After(.05, StyleMOPCharacterTabs)
+                end)
+                tab.CCSMOPClickHooked = true
+            end
+        end
+    end
+
+    if tab1 and CharacterFrame then
+        tab1:ClearAllPoints()
+        tab1:SetPoint("TOPLEFT", CharacterFrame, "BOTTOMLEFT", 11, 2)
+    end
+    if tab2 and tab1 then
+        tab2:ClearAllPoints()
+        tab2:SetPoint("TOPLEFT", tab1, "TOPRIGHT", 3, 0)
+    end
+    if tab3 and tab2 then
+        tab3:ClearAllPoints()
+        tab3:SetPoint("TOPLEFT", tab2, "TOPRIGHT", 3, 0)
+    end
+end
+
+local function GetMOPCurrencyScrollFrame()
+    if TokenFrame and TokenFrame.ScrollBox then
+        return TokenFrame.ScrollBox
+    end
+    return _G.TokenFrameContainer or (TokenFrame and TokenFrame.Container)
+end
+
+local function GetMOPCurrencyScrollTarget(scrollFrame)
+    if not scrollFrame then return nil end
+    return scrollFrame.ScrollTarget
+        or scrollFrame.scrollChild
+        or scrollFrame.ScrollChild
+        or _G.TokenFrameContainerScrollChild
+end
+
 local function InitializeFrameUpdates()
-    ReputationFrame:ClearAllPoints()
-    ReputationFrame:SetPoint("TOPLEFT", CharacterFrameBg, "TOPLEFT", 0, 0)
-    ReputationFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", 0, 0)
+    if ReputationFrame and CharacterFrameBg then
+        ReputationFrame:ClearAllPoints()
+        ReputationFrame:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 0, 0)
+        ReputationFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", 0, 7)
+    end
+
+    if ReputationListScrollFrame and CharacterFrameInset and CharacterFrameBg then
+        ReputationListScrollFrame:ClearAllPoints()
+        ReputationListScrollFrame:SetPoint("TOPLEFT", CharacterFrameInset, "TOPLEFT", 12, -4)
+        ReputationListScrollFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", -40, 7)
+    end
+
+    local currencyScrollFrame = GetMOPCurrencyScrollFrame()
+    if TokenFrame and currencyScrollFrame and CharacterFrameBg and not InCombatLockdown() then
+        TokenFrame:ClearAllPoints()
+        TokenFrame:SetPoint("TOPLEFT", CharacterFrame, "TOPLEFT", 0, 0)
+        TokenFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", 0, 0)
+        currencyScrollFrame:ClearAllPoints()
+        currencyScrollFrame:SetPoint("TOPLEFT", CharacterFrameInset, "TOPLEFT", 12, -4)
+        currencyScrollFrame:SetPoint("BOTTOMRIGHT", CharacterFrameBg, "BOTTOMRIGHT", -30, 26)
+    end
+
+    StyleMOPCharacterTabs()
+end
+
+local function ScheduleMOPFrameUpdates()
+    C_Timer.After(0, InitializeFrameUpdates)
+    C_Timer.After(.05, InitializeFrameUpdates)
 end
 
 
@@ -221,6 +836,28 @@ local function MOPupdateLocationInfo(unit, slotIndex, framename)
     local bgfader = _G[slotFrameName.."bgfader"] or CreateFrame("Frame", slotFrameName.."bgfader", _G[slotFrameName])
     local bgfadertex = _G[bgfader:GetName().."tex"] or bgfader:CreateTexture(bgfader:GetName().."tex", "BACKGROUND", nil, 1)
 
+    local ccsStat, ccsStaticon, ccsStattext
+    if isPlayer and framename == "Character" then
+        ccsStat = _G[slotFrameName].ccsStat or CreateFrame("Frame", nil, _G[slotFrameName], BackdropTemplateMixin and "BackdropTemplate")
+        ccsStaticon = ccsStat.icon or ccsStat:CreateTexture(nil, "ARTWORK", nil, 1)
+        ccsStattext = ccsStat.text or ccsStat:CreateFontString()
+
+        _G[slotFrameName].ccsStat = ccsStat
+        ccsStat.icon = ccsStaticon
+        ccsStat.text = ccsStattext
+
+        if type(ccsStat.SetBackdrop) == "function" then
+            ccsStat:SetBackdrop({
+                bgFile = "Interface\\Masks\\SquareMask.BLP",
+                edgeFile = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\UI-Tooltip-SquareBorder.blp",
+                edgeSize = 16,
+                insets = { left = 3, right = 3, top = 3, bottom = 3 },
+            })
+            ccsStat:SetBackdropColor(0, 0, 0, .85)
+            ccsStat:SetBackdropBorderColor(.7, .7, .7, .9)
+        end
+    end
+
     -- Optional: durability for player only
     local durabilityTxt, durbar, durbartex
     if isPlayer then
@@ -238,6 +875,98 @@ local function MOPupdateLocationInfo(unit, slotIndex, framename)
     local gemIconframe1 = _G[slotFrameName.."gemtex1"] or CreateFrame("Button", slotFrameName.."gemtex1", _G[slotFrameName], "UIPanelButtonTemplate")
     local gemIconframe2 = _G[slotFrameName.."gemtex2"] or CreateFrame("Button", slotFrameName.."gemtex2", _G[slotFrameName], "UIPanelButtonTemplate")
     local gemIconframe3 = _G[slotFrameName.."gemtex3"] or CreateFrame("Button", slotFrameName.."gemtex3", _G[slotFrameName], "UIPanelButtonTemplate")
+
+    local socketTextureByKind = {
+        BLUE = 136256,
+        META = 136257,
+        RED = 136258,
+        YELLOW = 136259,
+        PRISMATIC = 458977,
+        COGWHEEL = 407324,
+    }
+
+    local socketKindByTexture = {
+        [136256] = "BLUE",
+        [136257] = "META",
+        [136258] = "RED",
+        [136259] = "YELLOW",
+        [458977] = "PRISMATIC",
+        [407324] = "COGWHEEL",
+    }
+
+    local function getSocketKindFromTexture(socketTexture)
+        local fileID = tonumber(socketTexture)
+        if fileID and socketKindByTexture[fileID] then
+            return socketKindByTexture[fileID]
+        end
+
+        if type(socketTexture) == "string" then
+            local path = socketTexture:lower()
+            if path:find("red", 1, true) then return "RED" end
+            if path:find("yellow", 1, true) then return "YELLOW" end
+            if path:find("blue", 1, true) then return "BLUE" end
+            if path:find("meta", 1, true) then return "META" end
+            if path:find("prismatic", 1, true) then return "PRISMATIC" end
+            if path:find("cogwheel", 1, true) then return "COGWHEEL" end
+        end
+    end
+
+    local function getSocketKindFromText(text)
+        if type(text) ~= "string" then return nil end
+        local labels = {
+            { EMPTY_SOCKET_RED, "RED" },
+            { EMPTY_SOCKET_YELLOW, "YELLOW" },
+            { EMPTY_SOCKET_BLUE, "BLUE" },
+            { EMPTY_SOCKET_META, "META" },
+            { EMPTY_SOCKET_PRISMATIC, "PRISMATIC" },
+            { EMPTY_SOCKET_COGWHEEL, "COGWHEEL" },
+        }
+        for _, socketData in ipairs(labels) do
+            local label, kind = socketData[1], socketData[2]
+            if type(label) == "string" and text:find(label, 1, true) then
+                return kind
+            end
+        end
+    end
+
+    local function getSocketRing(gemFrame)
+        local ring = gemFrame.ccsSocketRing
+        if not ring then
+            -- Draw a complete socket icon above the button and put the gem
+            -- inside it.  The native empty-socket texture supplies both the
+            -- socket colour and the four inward-facing corner clasps.
+            ring = CreateFrame("Frame", nil, gemFrame)
+            ring:SetPoint("CENTER", gemFrame, "CENTER", 0, 0)
+            ring:SetSize(22, 22)
+            ring:SetFrameLevel(gemFrame:GetFrameLevel() + 20)
+            ring:EnableMouse(false)
+
+            ring.border = ring:CreateTexture(nil, "ARTWORK", nil, 1)
+            ring.border:SetAllPoints()
+
+            ring.gem = ring:CreateTexture(nil, "OVERLAY", nil, 7)
+            ring.gem:SetPoint("CENTER", ring, "CENTER", 0, 0)
+            ring.gem:SetSize(13, 13)
+            gemFrame.ccsSocketRing = ring
+        end
+        return ring
+    end
+
+    local function showSocketRing(ring, socketTexture, socketKind, gemTexture)
+        socketKind = socketKind or getSocketKindFromTexture(socketTexture)
+        local nativeSocketTexture = socketTexture
+            or socketTextureByKind[socketKind]
+            or socketTextureByKind.PRISMATIC
+
+        ring.border:SetTexture(nativeSocketTexture)
+        ring.border:SetVertexColor(1, 1, 1, 1)
+        ring.gem:SetTexture(gemTexture)
+        ring:Show()
+    end
+
+    local gemSocketRing1 = getSocketRing(gemIconframe1)
+    local gemSocketRing2 = getSocketRing(gemIconframe2)
+    local gemSocketRing3 = getSocketRing(gemIconframe3)
 
     -- Positioning and font setup
     nameTxt:SetPoint(SubElementSetPoint, _G[slotFrameName], SubElementSetPoint2, 10 * neg, 13)
@@ -272,6 +1001,22 @@ local function MOPupdateLocationInfo(unit, slotIndex, framename)
     bgfader:SetFrameLevel(1)
     bgfadertex:SetAllPoints()
     bgfadertex:SetTexture("Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\Square_AlphaGradient.tga") -- last remnant from WeakAuras.
+
+    if ccsStat then
+        ccsStat:ClearAllPoints()
+        ccsStat:SetSize(100, 39)
+        ccsStat:SetPoint(SubElementSetPoint, slotFrameName, SubElementSetPoint2, 3 * neg, 0)
+        ccsStat:SetFrameLevel(_G[slotFrameName]:GetFrameLevel() + 20)
+
+        ccsStaticon:ClearAllPoints()
+        ccsStaticon:SetSize(24, 24)
+        ccsStaticon:SetPoint(SubElementSetPoint, ccsStat, SubElementSetPoint, 7 * neg, 0)
+
+        ccsStattext:ClearAllPoints()
+        ccsStattext:SetPoint(SubElementSetPoint, ccsStaticon, SubElementSetPoint2, 3 * neg, 0)
+        ccsStattext:SetFont(CCS.fontname, 12, CCS.textoutline)
+        ccsStattext:SetTextColor(1, 1, 1, 1)
+    end
     
     gemIconframe1:SetSize(15, 15)
     gemIconframe1:SetPoint("TOP"..SubElementSetPoint2, slotFrameName, "TOP"..SubElementSetPoint, -8 * neg, 6)
@@ -294,8 +1039,12 @@ local function MOPupdateLocationInfo(unit, slotIndex, framename)
     gemIconframe1:Hide()
     gemIconframe2:Hide()
     gemIconframe3:Hide()
+    gemSocketRing1:Hide()
+    gemSocketRing2:Hide()
+    gemSocketRing3:Hide()
     bgfader:Hide()
     if durbar then durbar:Hide() end
+    if ccsStat then ccsStat:Hide() end
 
     -- Bail early if no item
     if link == nil then
@@ -328,6 +1077,9 @@ local function MOPupdateLocationInfo(unit, slotIndex, framename)
         local EmptySocket = false
         local SocketCount = 0;
         local Enchant = ""
+        local EngineeringEnchant = ""
+        local permanentEnchantID = tonumber(link:match("item:%d+:(%d+)")) or 0
+        local hasPermanentEnchant = permanentEnchantID > 0
         local ItemUpgradeLevel = ""
         
         ItemTip:SetOwner(WorldFrame, 'ANCHOR_NONE');
@@ -592,6 +1344,225 @@ local function getMissingEnchantText()
     return "<" .. label .. ": " .. missing .. ">"
 end
 
+local function getLocalizedSpellName(spellID, fallback)
+    local name
+    if C_Spell and type(C_Spell.GetSpellName) == "function" then
+        name = C_Spell.GetSpellName(spellID)
+    end
+    if not name and type(GetSpellInfo) == "function" then
+        name = GetSpellInfo(spellID)
+    end
+    return name or fallback
+end
+
+local function stripEnchantSpellPrefix(name)
+    if not name then return nil end
+    local stripped = name:match("^.-%s+[-–—－]%s+(.+)$")
+        or name:match("^.-%s*[:：]%s*(.+)$")
+    return stripped or name
+end
+
+local MOP_WEAPON_ENCHANT_SPELLS = {
+    [4441] = 104430, -- Elemental Force
+    [4442] = 104427, -- Jade Spirit
+    [4443] = 104434, -- Dancing Steel
+    [4444] = 104425, -- Windsong
+    [4445] = 104440, -- Colossus
+    [4446] = 104442, -- River's Song
+}
+
+local function getGeneratedEnchantText(enchantID)
+    if not enchantID or enchantID <= 0 then return nil end
+
+    local tooltip = _G.CCS_MOPEnchantNameTooltip
+    if not tooltip then
+        tooltip = CreateFrame(
+            "GameTooltip",
+            "CCS_MOPEnchantNameTooltip",
+            UIParent,
+            "GameTooltipTemplate"
+        )
+        tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    end
+
+    local function collectLines(itemString)
+        local lines = {}
+        tooltip:Hide()
+        tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+        tooltip:ClearLines()
+        tooltip:SetHyperlink(itemString)
+
+        for lineIndex = 2, tooltip:NumLines() do
+            local left = _G[tooltip:GetName() .. "TextLeft" .. lineIndex]
+            local text = norm(left and left:GetText())
+            if text then lines[text] = true end
+        end
+        return lines
+    end
+
+    if C_Item and type(C_Item.RequestLoadItemDataByID) == "function" then
+        C_Item.RequestLoadItemDataByID(9333)
+    end
+
+    local baseLines = collectLines("item:9333:0")
+    local enchantedLines = collectLines("item:9333:" .. enchantID)
+    tooltip:Hide()
+
+    for text in pairs(enchantedLines) do
+        if not baseLines[text] then
+            return text
+        end
+    end
+end
+
+local function getPermanentWeaponEnchantName(enchantID)
+    local spellID = MOP_WEAPON_ENCHANT_SPELLS[enchantID]
+    if spellID then
+        local spellName = getLocalizedSpellName(spellID)
+        if spellName then
+            return stripEnchantSpellPrefix(spellName)
+        end
+    end
+    return getGeneratedEnchantText(enchantID)
+end
+
+local function playerHasEngineering()
+    if type(IsSpellKnown) == "function" and IsSpellKnown(4036) then
+        return true
+    end
+    if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then
+        return false
+    end
+
+    local profession1, profession2 = GetProfessions()
+    for _, professionIndex in pairs({ profession1, profession2 }) do
+        if professionIndex then
+            local professionName, _, _, _, _, _, skillLine = GetProfessionInfo(professionIndex)
+            if tonumber(skillLine) == 202 then
+                return true
+            end
+
+            local engineeringName = getLocalizedSpellName(4036, "Engineering")
+            if professionName == engineeringName
+                or professionName == "工程学"
+                or professionName == "工程學"
+                or professionName == "Engineering" then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local MOP_ENGINEERING_TINKERS = {
+    [6] = {
+        spellID = 55016,
+        zhCN = "氮气推进器",
+        zhTW = "硝化甘油推進器",
+        enUS = "Nitro Boosts",
+    },
+    [10] = {
+        spellID = 126731,
+        zhCN = "神经元弹簧",
+        zhTW = "神經突觸彈簧",
+        enUS = "Synapse Springs",
+    },
+    [15] = {
+        spellID = 126392,
+        zhCN = "地精滑翔器",
+        zhTW = "哥布林滑翔翼",
+        enUS = "Goblin Glider",
+    },
+}
+
+local function isOnUseTooltipLine(text)
+    if not text then return false end
+    local localizedTrigger = _G.ITEM_SPELL_TRIGGER_ONUSE
+    return (localizedTrigger and text:find(localizedTrigger, 1, true) ~= nil)
+        or text:find("使用", 1, true) ~= nil
+        or text:find("Use:", 1, true) ~= nil
+end
+
+local function getEngineeringTinkerName(unitID, slotID, equippedItemLink)
+    local tinker = MOP_ENGINEERING_TINKERS[slotID]
+    if not tinker or not equippedItemLink then return nil end
+
+    local tooltip = _G.CCS_MOPEngineeringScanTooltip
+    if not tooltip then
+        tooltip = CreateFrame(
+            "GameTooltip",
+            "CCS_MOPEngineeringScanTooltip",
+            UIParent,
+            "GameTooltipTemplate"
+        )
+        tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    end
+
+    local baseLines = {}
+    tooltip:Hide()
+    tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    tooltip:ClearLines()
+    tooltip:SetHyperlink(equippedItemLink)
+    for lineIndex = 2, tooltip:NumLines() do
+        local left = _G[tooltip:GetName() .. "TextLeft" .. lineIndex]
+        local right = _G[tooltip:GetName() .. "TextRight" .. lineIndex]
+        local leftText = norm(left and left:GetText())
+        local rightText = norm(right and right:GetText())
+        if leftText then baseLines[leftText] = true end
+        if rightText then baseLines[rightText] = true end
+    end
+
+    tooltip:ClearLines()
+    local ok = pcall(tooltip.SetInventoryItem, tooltip, unitID, slotID)
+    if not ok then
+        tooltip:Hide()
+        return nil
+    end
+
+    for lineIndex = 2, tooltip:NumLines() do
+        local left = _G[tooltip:GetName() .. "TextLeft" .. lineIndex]
+        local right = _G[tooltip:GetName() .. "TextRight" .. lineIndex]
+        local texts = {
+            norm(left and left:GetText()),
+            norm(right and right:GetText()),
+        }
+
+        for _, text in pairs(texts) do
+            if text and isOnUseTooltipLine(text) then
+                local isExpectedTinker = not baseLines[text]
+
+                -- Gloves have several engineering tinkers.  Only Synapse
+                -- Springs has the MoP 1,920 primary-stat use effect.
+                if slotID == 10 then
+                    local digits = text:gsub("[^%d]", "")
+                    isExpectedTinker = isExpectedTinker and digits:find("1920", 1, true) ~= nil
+                end
+
+                if isExpectedTinker then
+                    tooltip:Hide()
+                    local fallback = tinker[locale] or tinker.enUS
+                    return getLocalizedSpellName(tinker.spellID, fallback)
+                end
+            end
+        end
+    end
+
+    tooltip:Hide()
+    return nil
+end
+
+local function getEngineeringEnchantLabel()
+    if locale == "zhCN" or locale == "zhTW" then
+        return "工程附魔"
+    end
+    return "Engineering"
+end
+
+local function getEngineeringMissingText()
+    local missing = ADDON_MISSING or ((locale == "zhCN" or locale == "zhTW") and "缺失" or "Missing")
+    return "<" .. getEngineeringEnchantLabel() .. ": " .. missing .. ">"
+end
+
 -- Line filter: ignore all non-enchant differences
 local function isIgnorableLine(t)
     return not t
@@ -623,9 +1594,6 @@ if itemLink then
     -- 1. Always check for upgrade line and item level
     --------------------------------------------------------------------
     local lastLineWasTransmogHeader = false
-    local enchantId = tonumber(itemLink:match("item:%d+:(%d+)")) or 0
-    local hasPermanentEnchant = (tonumber(enchantId) or 0) > 0
-
     CCS_ScanTooltip:ClearLines()
     CCS_ScanTooltip:SetInventoryItem(unit, slotIndex)
 
@@ -788,6 +1756,22 @@ if itemLink then
     end
 end
 
+if slotIndex == 16 and hasPermanentEnchant then
+    local weaponEnchantName = getPermanentWeaponEnchantName(permanentEnchantID)
+    if weaponEnchantName and weaponEnchantName ~= "" then
+        Enchant = weaponEnchantName
+    end
+end
+
+local engineeringTinkerName = getEngineeringTinkerName(unit, slotIndex, link)
+if engineeringTinkerName then
+    EngineeringEnchant = engineeringTinkerName
+elseif isPlayer and MOP_ENGINEERING_TINKERS[slotIndex]
+    and playerHasEngineering()
+    and option("showenchantgemerrors"..suffix) == true then
+    EngineeringEnchant = "|cffff0000" .. getEngineeringMissingText() .. "|r"
+end
+
 
 --[[
 if itemLink then
@@ -891,9 +1875,121 @@ end
             return icon
         end
 
+        local function getEmptySocketTextures(itemLink)
+            if type(itemLink) ~= "string" then return nil, nil, nil, nil, nil, nil end
+
+            local itemString = itemLink:match("(item:[^|]+)")
+            if not itemString then return nil, nil, nil, nil, nil, nil end
+
+            local itemID, enchantID, _, _, _, _, tail = itemString:match(
+                "^item:([^:]*):([^:]*):([^:]*):([^:]*):([^:]*):([^:]*):(.*)$"
+            )
+            if not itemID then return nil, nil, nil, nil, nil, nil end
+
+            -- Preserve reforge, upgrade and all later item-instance fields,
+            -- but clear the four gem fields so the tooltip exposes the
+            -- original socket textures in their actual order.
+            local emptyGemItemString = table.concat({
+                "item", itemID, enchantID, "0", "0", "0", "0", tail,
+            }, ":")
+
+            local tooltip = _G.CCS_MOPSocketScanTooltip
+            if not tooltip then
+                tooltip = CreateFrame(
+                    "GameTooltip",
+                    "CCS_MOPSocketScanTooltip",
+                    UIParent,
+                    "GameTooltipTemplate"
+                )
+                tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+            end
+
+            tooltip:Hide()
+            tooltip:SetOwner(UIParent, "ANCHOR_NONE")
+            tooltip:ClearLines()
+
+            for socketIndex = 1, 3 do
+                local socketTexture = _G[tooltip:GetName() .. "Texture" .. socketIndex]
+                if socketTexture then socketTexture:SetTexture(nil) end
+            end
+
+            local ok = pcall(tooltip.SetHyperlink, tooltip, emptyGemItemString)
+            if not ok then
+                tooltip:Hide()
+                return nil, nil, nil, nil, nil, nil
+            end
+
+            local socketTextures = {}
+            local socketKinds = {}
+            for socketIndex = 1, 3 do
+                local socketTexture = _G[tooltip:GetName() .. "Texture" .. socketIndex]
+                socketTextures[socketIndex] = socketTexture and socketTexture:GetTexture() or nil
+                socketKinds[socketIndex] = getSocketKindFromTexture(socketTextures[socketIndex])
+            end
+
+            -- Some MoP clients populate the localized empty-socket lines but
+            -- leave the GameTooltip texture regions blank.  Read those lines
+            -- in order as the first fallback.
+            local textSocketIndex = 0
+            for lineIndex = 2, tooltip:NumLines() do
+                local left = _G[tooltip:GetName() .. "TextLeft" .. lineIndex]
+                local right = _G[tooltip:GetName() .. "TextRight" .. lineIndex]
+                local socketKind = getSocketKindFromText(left and left:GetText())
+                    or getSocketKindFromText(right and right:GetText())
+                if socketKind then
+                    textSocketIndex = textSocketIndex + 1
+                    if textSocketIndex <= 3 then
+                        socketKinds[textSocketIndex] = socketKinds[textSocketIndex] or socketKind
+                    end
+                end
+            end
+            tooltip:Hide()
+
+            -- Last fallback: GetItemStats provides socket counts even when
+            -- the legacy tooltip exposes neither textures nor socket lines.
+            local hasSocket = socketTextures[1] or socketTextures[2] or socketTextures[3]
+                or socketKinds[1] or socketKinds[2] or socketKinds[3]
+            if not hasSocket then
+                local stats
+                if C_Item and type(C_Item.GetItemStats) == "function" then
+                    local statsOK, result = pcall(C_Item.GetItemStats, emptyGemItemString)
+                    if statsOK and type(result) == "table" then stats = result end
+                elseif type(GetItemStats) == "function" then
+                    local statsOK, result = pcall(GetItemStats, emptyGemItemString)
+                    if statsOK and type(result) == "table" then stats = result end
+                end
+
+                if stats then
+                    local fallbackOrder = { "META", "RED", "YELLOW", "BLUE", "PRISMATIC", "COGWHEEL" }
+                    local fallbackIndex = 0
+                    for _, socketKind in ipairs(fallbackOrder) do
+                        local count = tonumber(stats["EMPTY_SOCKET_" .. socketKind]) or 0
+                        for _ = 1, count do
+                            fallbackIndex = fallbackIndex + 1
+                            if fallbackIndex <= 3 then
+                                socketKinds[fallbackIndex] = socketKind
+                            end
+                        end
+                    end
+                end
+            end
+
+            for socketIndex = 1, 3 do
+                if not socketTextures[socketIndex] and socketKinds[socketIndex] then
+                    socketTextures[socketIndex] = socketTextureByKind[socketKinds[socketIndex]]
+                end
+            end
+
+            return socketTextures[1], socketTextures[2], socketTextures[3],
+                socketKinds[1], socketKinds[2], socketKinds[3]
+        end
+
         local Gem1Icon = getGemIcon(gem1Link)
         local Gem2Icon = getGemIcon(gem2Link)
         local Gem3Icon = getGemIcon(gem3Link)
+
+        local Sockettex1, Sockettex2, Sockettex3, SocketKind1, SocketKind2, SocketKind3 =
+            getEmptySocketTextures(link)
 
         local Gemtex1 = _G["CCS_ScanningtooltipTexture1"]:GetTexture() or nil
         local Gemtex2 = _G["CCS_ScanningtooltipTexture2"]:GetTexture() or nil
@@ -928,8 +2024,20 @@ end
         if option("showilvl"..suffix) == true then
             if option("showitemupgrade"..suffix) then 
                 if string.len(ItemUpgradeLevel) > 0 then
-                    local upr, upg, upb, upalpha = option("itemupgradecolor"..suffix)[1], option("itemupgradecolor"..suffix)[2], option("itemupgradecolor"..suffix)[3], option("itemupgradecolor"..suffix)[4];
-                    ItemUpgradeLevel = WrapTextInColor("(" .. ItemUpgradeLevel .. ")", CreateColor(upr, upg, upb, upalpha))
+                    local upgradeCurrent, upgradeMax = ItemUpgradeLevel:match("(%d+)%s*/%s*(%d+)%s*$")
+                    local upgradeColor
+
+                    if upgradeCurrent and upgradeMax
+                        and tonumber(upgradeCurrent) < tonumber(upgradeMax) then
+                        -- Incomplete upgrade tracks are highlighted like
+                        -- missing enchants.
+                        upgradeColor = CreateColor(1, 0, 0, 1)
+                    else
+                        local upr, upg, upb, upalpha = option("itemupgradecolor"..suffix)[1], option("itemupgradecolor"..suffix)[2], option("itemupgradecolor"..suffix)[3], option("itemupgradecolor"..suffix)[4]
+                        upgradeColor = CreateColor(upr, upg, upb, upalpha)
+                    end
+
+                    ItemUpgradeLevel = WrapTextInColor("(" .. ItemUpgradeLevel .. ")", upgradeColor)
                 end
             else
                 ItemUpgradeLevel = ""
@@ -957,12 +2065,18 @@ end
 
             if Enchant == "" and option("showenchantgemerrors"..suffix) == true
                 and isEnchantableSlot(slotIndex, itemType, link) then
-                enchantTxt:SetTextColor(1,0,0,1)
-                Enchant = getMissingEnchantText()
+                Enchant = "|cffff0000" .. getMissingEnchantText() .. "|r"
             end
 
-            if strlen(Enchant) > 100 then Enchant = format("%.75s", Enchant) .. "..." end
-            enchantTxt:SetText(Enchant)
+            local enchantParts = {}
+            if Enchant ~= "" then
+                enchantParts[#enchantParts + 1] = Enchant
+            end
+            if EngineeringEnchant ~= "" then
+                enchantParts[#enchantParts + 1] = EngineeringEnchant
+            end
+
+            enchantTxt:SetText(table.concat(enchantParts, " / "))
             enchantTxt:Show()
         end
         
@@ -990,9 +2104,9 @@ end
             local tooltip, tooltip2, tooltip3 = "", "", ""
             local gemCount = 0
             
-            if Gem1Icon or Gemtex1 then gemCount= gemCount+1 end
-            if Gem2Icon or Gemtex2 then gemCount= gemCount+1 end
-            if Gem3Icon or Gemtex3 then gemCount= gemCount+1 end
+            if Gem1Icon or Gemtex1 or Sockettex1 or SocketKind1 then gemCount= gemCount+1 end
+            if Gem2Icon or Gemtex2 or Sockettex2 or SocketKind2 then gemCount= gemCount+1 end
+            if Gem3Icon or Gemtex3 or Sockettex3 or SocketKind3 then gemCount= gemCount+1 end
             
             if slotIndex == 2 and expacID == LE_EXPANSION_DRAGONFLIGHT then
                 gemCount = 3
@@ -1020,10 +2134,12 @@ end
             
             if Gem1Icon then
                 gemIconframe1:SetNormalTexture(Gem1Icon)
+                showSocketRing(gemSocketRing1, Sockettex1, SocketKind1, Gem1Icon)
                 gemIconframe1:Show()
-            elseif Gemtex1 then
-                gemIconframe1:SetNormalTexture(Gemtex1)
-                if CCS.GemInfo[Gemtex1] then tooltip = CCS.GemInfo[Gemtex1].text else tooltip = ADDON_MISSING end
+            elseif Gemtex1 or Sockettex1 then
+                local emptySocketTexture = Gemtex1 or Sockettex1
+                gemIconframe1:SetNormalTexture(emptySocketTexture)
+                if CCS.GemInfo[emptySocketTexture] then tooltip = CCS.GemInfo[emptySocketTexture].text else tooltip = ADDON_MISSING end
                 gemIconframe1:Show()
             elseif slotIndex == 2 and expacID == LE_EXPANSION_DRAGONFLIGHT and option("showenchants"..suffix) then
                 gemIconframe1:SetNormalTexture("Interface\\COMMON\\Indicator-Red.blp")
@@ -1033,10 +2149,12 @@ end
             
             if Gem2Icon then
                 gemIconframe2:SetNormalTexture(Gem2Icon)
+                showSocketRing(gemSocketRing2, Sockettex2, SocketKind2, Gem2Icon)
                 gemIconframe2:Show()
-            elseif Gemtex2 then
-                gemIconframe2:SetNormalTexture(Gemtex2)
-                if CCS.GemInfo[Gemtex2] then tooltip2 = CCS.GemInfo[Gemtex2].text else tooltip2 = ADDON_MISSING end
+            elseif Gemtex2 or Sockettex2 then
+                local emptySocketTexture = Gemtex2 or Sockettex2
+                gemIconframe2:SetNormalTexture(emptySocketTexture)
+                if CCS.GemInfo[emptySocketTexture] then tooltip2 = CCS.GemInfo[emptySocketTexture].text else tooltip2 = ADDON_MISSING end
                 gemIconframe2:Show()
             elseif slotIndex == 2 and expacID == LE_EXPANSION_DRAGONFLIGHT and option("showenchants"..suffix) then
                 gemIconframe2:SetNormalTexture("Interface\\COMMON\\Indicator-Red.blp")
@@ -1046,10 +2164,12 @@ end
             
             if Gem3Icon then
                 gemIconframe3:SetNormalTexture(Gem3Icon)
+                showSocketRing(gemSocketRing3, Sockettex3, SocketKind3, Gem3Icon)
                 gemIconframe3:Show()
-            elseif Gemtex3 then
-                gemIconframe3:SetNormalTexture(Gemtex3)
-                if CCS.GemInfo[Gemtex3] then tooltip3 = CCS.GemInfo[Gemtex3].text else tooltip3 = ADDON_MISSING end
+            elseif Gemtex3 or Sockettex3 then
+                local emptySocketTexture = Gemtex3 or Sockettex3
+                gemIconframe3:SetNormalTexture(emptySocketTexture)
+                if CCS.GemInfo[emptySocketTexture] then tooltip3 = CCS.GemInfo[emptySocketTexture].text else tooltip3 = ADDON_MISSING end
                 gemIconframe3:Show()
             elseif slotIndex == 2 and expacID == LE_EXPANSION_DRAGONFLIGHT and option("showenchants"..suffix) then
                 gemIconframe3:SetNormalTexture("Interface\\COMMON\\Indicator-Red.blp")
@@ -1139,6 +2259,11 @@ local function loopitems()
             print("|cffff0000ChonkyCharacterSheet|r slot " .. slotIndex .. " update failed: " .. tostring(err))
         end
     end 
+
+    local activeGroup = CCS.mopActiveStatGroup or CCS.mopHoveredStatGroup
+    if activeGroup and MOPStatHighlightsEnabled() then
+        CCS:ShowStatHighlights(activeGroup)
+    end
 end
 
 ---
@@ -1235,10 +2360,24 @@ function CCS.StyleReputationRow(row)
     if bg then
         bg:SetTexture("Interface\\Masks\\SquareMask.BLP")
         bg:SetColorTexture(.15, .15, .15, 0.90)
+        bg:ClearAllPoints()
+        bg:SetAllPoints(row)
     end
 
-    -- Cache sub-bars once
-    row.CCS_SubBars = { row:GetChildren() }
+    -- Only style the actual reputation status bar. The old code treated the
+    -- expand/collapse button as a bar too, which widened that button to 200px
+    -- and pushed some faction names into the middle of the panel.
+    row.CCS_SubBars = {}
+    local mainBar = _G[name.."ReputationBar"]
+    if mainBar then
+        table.insert(row.CCS_SubBars, mainBar)
+    else
+        for _, child in ipairs({row:GetChildren()}) do
+            if child.IsObjectType and child:IsObjectType("StatusBar") then
+                table.insert(row.CCS_SubBars, child)
+            end
+        end
+    end
 
     if not row.CCS_FillTexture then
         CCS_DetectFillRegionForRow(row)
@@ -1428,62 +2567,214 @@ function CCSReputationFrame_Update()
 end
 
 local function CurrencyFrame_Update()
-            
-            local tf={TokenFrame.ScrollBox.ScrollTarget:GetChildren()}; 
-            
-            for _,t in ipairs(tf) do 
-                if t and t.Name then t.Name:SetFont(t.Name:GetFont(), option("fontsize_currency") or 11, "")end 
-                if t and t.Count then t.Count:SetFont(t.Count:GetFont(), option("fontsize_currency") or 11, "")end 
+    local scrollFrame = GetMOPCurrencyScrollFrame()
+    if not scrollFrame then return end
 
-                    if t.Text then
-                        t.Text:SetFont(option("fontname_currency") or fontName, option("fontsize_currency"), CCS.textoutline)
-                        t.Text:SetTextColor(
-                            option("fontcolor_currency")[1] or 1,
-                            option("fontcolor_currency")[2] or 1,
-                            option("fontcolor_currency")[3] or 1,
-                            option("fontcolor_currency")[4] or 1
-                        )                    
-                    end
+    local scrollTarget = GetMOPCurrencyScrollTarget(scrollFrame)
 
+    local fontName = option("fontname_currency") or CCS.fontname
+    local fontSize = option("fontsize_currency") or 11
+    local fontColor = option("fontcolor_currency") or {1, 1, 1, 1}
+    local scrollWidth = scrollFrame:GetWidth() or 0
+    local contentWidth = math.max(300, math.floor(scrollWidth - 8))
 
-                local ks2={t:GetChildren()}; 
-                for _,k2 in ipairs(ks2) do  -- Individual Row
-                    k2.Background = k2.Background or k2:CreateTexture(nil, "BACKGROUND", nil, 2)
-                    
-                    if (k2.Background) then
-                        k2.Background:SetTexture("Interface\\Masks\\SquareMask.BLP")
-                        k2.Background:SetColorTexture(.15, .15, .15, 0.90)
-                        k2.Background:ClearAllPoints()
-                        k2.Background:SetPoint("TOPLEFT", k2, "TOPLEFT")
-                        k2.Background:SetPoint("BOTTOMRIGHT", k2, "BOTTOMRIGHT")
-                        k2.Background:Show()
-                    end
+    local function SetCurrencyWidth(frame)
+        if not frame or not frame.SetWidth then return end
+        local currentWidth = frame.GetWidth and frame:GetWidth() or 0
+        if math.abs(currentWidth - contentWidth) > .5 then
+            frame:SetWidth(contentWidth)
+        end
+    end
 
-                    if k2.Name then
-                        k2.Name:SetFont(option("fontname_currency") or fontName, option("fontsize_currency"), CCS.textoutline)
-                        k2.Name:SetTextColor(
-                            option("fontcolor_currency")[1] or 1,
-                            option("fontcolor_currency")[2] or 1,
-                            option("fontcolor_currency")[3] or 1,
-                            option("fontcolor_currency")[4] or 1
-                        )
-                    end
-                    
-                    if k2.Count then
-                        k2.Count:SetFont(option("fontname_currency") or fontName, option("fontsize_currency"), CCS.textoutline)
-                        k2.Count:SetTextColor(
-                            option("fontcolor_currency")[1] or 1,
-                            option("fontcolor_currency")[2] or 1,
-                            option("fontcolor_currency")[3] or 1,
-                            option("fontcolor_currency")[4] or 1
-                        )
+    if scrollTarget then
+        SetCurrencyWidth(scrollTarget)
+    end
 
-                    end
+    local function StyleFontString(fontString)
+        if not fontString or not fontString.GetFont or not fontString.SetFont then return end
+        local currentFont = fontString:GetFont()
+        fontString:SetFont(fontName or currentFont, fontSize, CCS.textoutline or "")
+        if fontString.SetTextColor then
+            fontString:SetTextColor(
+                fontColor[1] or 1,
+                fontColor[2] or 1,
+                fontColor[3] or 1,
+                fontColor[4] or 1
+            )
+        end
+    end
 
-                end
-                
+    local function StyleCurrencyRow(row, forceHeader)
+        if not row or not row.CreateTexture then return end
+
+        SetCurrencyWidth(row)
+
+        local rowName = row.GetName and row:GetName()
+        local nameText = row.Name or row.name or row.Text or row.text
+        local countText = row.Count or row.count
+        local icon = row.Icon or row.icon or row.IconTexture
+        local categoryMiddle = row.CategoryMiddle or row.categoryMiddle
+            or (rowName and _G[rowName.."CategoryMiddle"])
+        local isHeader = forceHeader or row.isHeader
+            or (categoryMiddle and categoryMiddle.IsShown and categoryMiddle:IsShown())
+
+        row.CCSBackground = row.CCSBackground or row:CreateTexture(nil, "BACKGROUND", nil, 2)
+        row.CCSBackground:SetTexture("Interface\\Masks\\SquareMask.BLP")
+        row.CCSBackground:ClearAllPoints()
+        row.CCSBackground:SetAllPoints(row)
+        row.CCSBackground:Show()
+
+        if isHeader then
+            row.CCSBackground:SetGradient("Vertical",
+                CreateColor(.16, .16, .16, .96), CreateColor(.03, .03, .03, .96))
+        else
+            row.CCSBackground:SetColorTexture(.15, .15, .15, .90)
+        end
+
+        StyleFontString(nameText)
+        StyleFontString(countText)
+
+        local canAnchorIcon = icon and icon.ClearAllPoints and icon.SetPoint
+        if canAnchorIcon then
+            icon:ClearAllPoints()
+            icon:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        end
+
+        if countText and countText.ClearAllPoints and countText.SetPoint then
+            countText:ClearAllPoints()
+            if canAnchorIcon then
+                countText:SetPoint("RIGHT", icon, "LEFT", -8, 0)
+            else
+                countText:SetPoint("RIGHT", row, "RIGHT", -12, 0)
             end
+            if countText.SetJustifyH then
+                countText:SetJustifyH("RIGHT")
+            end
+        end
 
+        local expandIcon = row.ExpandIcon or row.expandIcon
+            or (rowName and _G[rowName.."ExpandIcon"])
+        local canAnchorExpand = isHeader and expandIcon
+            and expandIcon.ClearAllPoints and expandIcon.SetPoint
+        if canAnchorExpand then
+            expandIcon:ClearAllPoints()
+            expandIcon:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+        end
+
+        if nameText and nameText.ClearAllPoints and nameText.SetPoint then
+            nameText:ClearAllPoints()
+            nameText:SetPoint("LEFT", row, "LEFT", 12, 0)
+            if canAnchorExpand then
+                nameText:SetPoint("RIGHT", expandIcon, "LEFT", -8, 0)
+            elseif countText then
+                nameText:SetPoint("RIGHT", countText, "LEFT", -12, 0)
+            else
+                nameText:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+            end
+            if nameText.SetJustifyH then
+                nameText:SetJustifyH("LEFT")
+            end
+        end
+
+        if isHeader then
+            local categoryPieces = {}
+            local function AddCategoryPiece(texture)
+                if texture then
+                    categoryPieces[#categoryPieces + 1] = texture
+                end
+            end
+            AddCategoryPiece(row.CategoryLeft or row.categoryLeft)
+            AddCategoryPiece(row.CategoryMiddle or row.categoryMiddle)
+            AddCategoryPiece(row.CategoryRight or row.categoryRight)
+            if rowName then
+                AddCategoryPiece(_G[rowName.."CategoryLeft"])
+                AddCategoryPiece(_G[rowName.."CategoryMiddle"])
+                AddCategoryPiece(_G[rowName.."CategoryRight"])
+            end
+            for _, texture in ipairs(categoryPieces) do
+                if texture and texture.SetAlpha and texture.Hide then
+                    texture:SetAlpha(0)
+                    texture:Hide()
+                end
+            end
+        end
+    end
+
+    local function StyleCurrencyHeader(header)
+        if not header or not header.Text then return end
+
+        if not header.CCSMOPHeaderArtHidden then
+            for _, region in ipairs({header:GetRegions()}) do
+                if region.IsObjectType and region:IsObjectType("Texture") then
+                    local width = region:GetWidth() or 0
+                    local height = region:GetHeight() or 0
+                    if width > 24 or height > 18 then
+                        region:SetAlpha(0)
+                    end
+                end
+            end
+            header.CCSMOPHeaderArtHidden = true
+        end
+
+        header.CCSHeaderBackground = header.CCSHeaderBackground
+            or header:CreateTexture(nil, "BACKGROUND", nil, 3)
+        header.CCSHeaderBackground:ClearAllPoints()
+        header.CCSHeaderBackground:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+        header.CCSHeaderBackground:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
+        header.CCSHeaderBackground:SetHeight(22)
+        header.CCSHeaderBackground:SetTexture("Interface\\Masks\\SquareMask.BLP")
+        header.CCSHeaderBackground:SetGradient("Vertical",
+            CreateColor(.16, .16, .16, .96), CreateColor(.03, .03, .03, .96))
+    end
+
+    local legacyButtons = scrollFrame.buttons
+        or (_G.TokenFrameContainer and _G.TokenFrameContainer.buttons)
+    if legacyButtons and #legacyButtons > 0 then
+        for _, row in ipairs(legacyButtons) do
+            StyleCurrencyRow(row)
+        end
+        return
+    end
+
+    local namedLegacyButtons = {}
+    for i = 1, 50 do
+        local row = _G["TokenFrameContainerButton"..i]
+        if not row then break end
+        namedLegacyButtons[#namedLegacyButtons + 1] = row
+    end
+    if #namedLegacyButtons > 0 then
+        for _, row in ipairs(namedLegacyButtons) do
+            StyleCurrencyRow(row)
+        end
+        return
+    end
+
+    if not scrollTarget then return end
+
+    local containers = {scrollTarget:GetChildren()}
+    for _, container in ipairs(containers) do
+        SetCurrencyWidth(container)
+
+        if container.Name or container.Count then
+            StyleCurrencyRow(container)
+        else
+            StyleFontString(container.Text)
+            StyleCurrencyHeader(container)
+        end
+
+        local rows = {container:GetChildren()}
+        for _, row in ipairs(rows) do
+            if row.Name or row.Count or row.Text then
+                StyleCurrencyRow(row)
+            end
+        end
+    end
+end
+
+local function RestoreMOPCurrencyLayout()
+    if InCombatLockdown() then return end
+    InitializeFrameUpdates()
+    CurrencyFrame_Update()
 end
 
 function CCS.FixReputationBarWidth(row)
@@ -1513,17 +2804,14 @@ function CCS.HookSetup()
         --== Frame Hooks
     CreateExtraReputationRows(10)
 
-    hooksecurefunc(ReputationFrame, "Hide", function() ReputationDetailFrame:Hide(); end )
+    ReputationFrame:HookScript("OnHide", function() ReputationDetailFrame:Hide(); end )
     hooksecurefunc("ReputationFrame_Update", CCSReputationFrame_Update)
 
-    hooksecurefunc(ReputationFrame, "Show", function()
+    ReputationFrame:HookScript("OnShow", function()
         hookfix();
         InitializeFrameUpdates();
-        
-        ReputationListScrollFrame:ClearAllPoints()
-        ReputationListScrollFrame:SetPoint("TOPLEFT", CharacterFrameInset, "TOPLEFT", 0, -4)
-        ReputationListScrollFrame:SetPoint("BOTTOMRIGHT", ReputationFrame, "BOTTOMRIGHT", -40, 4)
-        
+        ScheduleMOPFrameUpdates()
+
         local upperTex, lowerTex = ReputationListScrollFrame:GetRegions()
         if upperTex then
             upperTex:SetTexture("Interface\\Masks\\SquareMask.BLP")
@@ -1542,9 +2830,51 @@ function CCS.HookSetup()
             lowerTex:SetWidth(20)
         end
 
-        ReputationFrameStandingLabel:SetPoint("TOPLEFT", ReputationFrame, "TOPLEFT", 545, -42)
+        if ReputationFrameStandingLabel then
+            ReputationFrameStandingLabel:ClearAllPoints()
+            ReputationFrameStandingLabel:SetPoint("TOPLEFT", ReputationFrame, "TOPLEFT", 545, -42)
+        end
         
     end)
+
+    if TokenFrame then
+        TokenFrame:HookScript("OnShow", function()
+            InitializeFrameUpdates()
+            ScheduleMOPFrameUpdates()
+            C_Timer.After(.1, RestoreMOPCurrencyLayout)
+        end)
+
+        if TokenFrame.ScrollBox then
+            hooksecurefunc(TokenFrame.ScrollBox, "Update", CurrencyFrame_Update)
+        elseif type(TokenFrame_Update) == "function" then
+            hooksecurefunc("TokenFrame_Update", function()
+                C_Timer.After(0, RestoreMOPCurrencyLayout)
+                C_Timer.After(.05, RestoreMOPCurrencyLayout)
+            end)
+        end
+
+        local currencyScrollFrame = GetMOPCurrencyScrollFrame()
+        if currencyScrollFrame and not currencyScrollFrame.CCSMOPSizeHooked then
+            currencyScrollFrame:HookScript("OnSizeChanged", function()
+                if currencyScrollFrame.CCSMOPRestorePending then return end
+                currencyScrollFrame.CCSMOPRestorePending = true
+                C_Timer.After(0, function()
+                    RestoreMOPCurrencyLayout()
+                    currencyScrollFrame.CCSMOPRestorePending = false
+                end)
+            end)
+            currencyScrollFrame.CCSMOPSizeHooked = true
+        end
+
+        if TokenFramePopup and not TokenFramePopup.CCSMOPLayoutHooked then
+            TokenFramePopup:HookScript("OnShow", function()
+                C_Timer.After(0, RestoreMOPCurrencyLayout)
+                C_Timer.After(.05, RestoreMOPCurrencyLayout)
+                C_Timer.After(.1, RestoreMOPCurrencyLayout)
+            end)
+            TokenFramePopup.CCSMOPLayoutHooked = true
+        end
+    end
 
     hooksecurefunc("ReputationFrame_SetRowType", function(row)
         if not row.CCS_WidthFixed then
@@ -1580,9 +2910,14 @@ function CCS.HookSetup()
     CharacterStatsPaneCategory7ToolbarSortUpArrow:HookScript("OnClick", function(self, button, down) hookfix() end)
     
    
-    hooksecurefunc(PaperDollFrame, "Show", function() hookfix(); end)
-    hooksecurefunc(CharacterFrame, "Show", function() 
+    PaperDollFrame:HookScript("OnShow", function()
+        hookfix()
+        StyleMOPCharacterTabs()
+        ScheduleMOPFrameUpdates()
+    end)
+    CharacterFrame:HookScript("OnShow", function() 
             InitializeFrameUpdates()
+            ScheduleMOPFrameUpdates()
             CCS:FireEvent("CCS_EVENT_CSHOW")
             GameTooltip:Hide()
             hookfix()
@@ -1592,7 +2927,7 @@ function CCS.HookSetup()
             end
     end )
 
-    hooksecurefunc(CharacterFrame, "Hide", function() GameTooltip:Hide(); end )
+    CharacterFrame:HookScript("OnHide", function() GameTooltip:Hide(); end )
     CCS.Hooked = true
 end
 
@@ -1969,6 +3304,8 @@ function module:SetupBlizzardFrameOverrides()
     CharacterModelFrameBackgroundOverlay:SetPoint("BOTTOMRIGHT", CharacterModelFrameBackgroundBotRight, "BOTTOMRIGHT", 0, 70)
     CharacterModelFrameBackgroundOverlay:Hide()
 
+    InitializeFrameUpdates()
+
 end
 
 function module:UpdateStyle()
@@ -1999,6 +3336,8 @@ function module:UpdateStyle()
     )
 
     if option("hidemodelbg") then modbg:Hide() else modbg:Show() end
+
+    StyleMOPCharacterTabs()
 
 end
 
@@ -2206,6 +3545,8 @@ function module:Initialize(onlyStyle)
     if onlyStyle and self.BlizzardCleanup then
         self:ApplyDynamicLayout()
         self:UpdateStyle()
+        ScheduleMOPFrameUpdates()
+        C_Timer.After(.1, CurrencyFrame_Update)
         if InspectFrame ~= nil and InspectFrame.unit ~= nil and InspectFrame:IsVisible() == true then
             MOPinitializeinspectframe()
         end
@@ -2230,6 +3571,9 @@ function module:Initialize(onlyStyle)
         self:UpdateStyle()
         self.StyleSetup = true
     end
+
+    ScheduleMOPFrameUpdates()
+    C_Timer.After(.1, CurrencyFrame_Update)
     
 end
 -- Show the Paragon Toast if a Paragon Reward Quest is accepted.
@@ -2332,10 +3676,15 @@ function CCS.MOPCharacterSheetEventHandler(event, ...)
     end
 
     if event == "CCS_EVENT_OPTIONS" then
+        if MOPStatHighlightsEnabled() then
+            ScheduleMOPStatRowHooks()
+        else
+            ClearMOPStatHighlightSelection()
+        end
         TryLoopItems()
         CCS.ChangeModelBg(false)
         CCSReputationFrame_Update()
-        --CurrencyFrame_Update()
+        CurrencyFrame_Update()
 
         if InspectFrame ~= nil and InspectFrame:IsVisible() == true then
             MOPloopinspectitems()

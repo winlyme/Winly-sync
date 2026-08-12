@@ -297,7 +297,7 @@ ns.optionDefs = {
     { type="checkbox", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL), key="show_diminishing_returns", label=L["show_diminishing_returns"], value=true, default=true, slots=1 },
     { type="checkbox", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL), key="show_hide_zero_stats", label=L["hide_zero_stats"], value=false, default=false, slots=1 },
     { type="checkbox", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL), key="show_secondarypriority", label=L["Show wowhead recommended secondary stat priority"], value=false, default=false, slots=2 },
-    { type="checkbox", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL), key="show_stathighlights", label=ENABLE..": "..L["STATS_TOGGLE"], value=true, default=true, slots=2 },
+    { type="checkbox", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL, CCS.MOP), key="show_stathighlights", label=ENABLE..": "..L["STATS_TOGGLE"], value=true, default=true, slots=2 },
     { type="dropdown", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL), key="long_text_handling", label=L["Long Text Handling"], value="Truncate", default="Truncate", values={"Full Text", "Truncate", "Wrap Text"}, slots=2 },
 
     { type="divider", cat="CHAR-STATS", ver=bit.bor(CCS.RETAIL), slots=4 },
@@ -2666,6 +2666,7 @@ CCS.statKeyMap = {
     secondary_crit        = "CRIT_RATING",
     secondary_haste       = "HASTE_RATING",
     secondary_mastery     = "MASTERY_RATING",
+    secondary_spirit_hit  = { "SPIRIT", "HIT_RATING" },
     secondary_versatility = "VERSATILITY",
 }
 

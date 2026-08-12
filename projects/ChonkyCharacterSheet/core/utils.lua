@@ -1461,6 +1461,8 @@ function CCS:NewStatTable()
         CRIT_RATING = 0,
         HASTE_RATING = 0,
         MASTERY_RATING = 0,
+        SPIRIT = 0,
+        HIT_RATING = 0,
         VERSATILITY = 0,
         LEECH = 0,
         AVOIDANCE = 0,
@@ -1477,27 +1479,120 @@ CCS.skipSlots = {
     [19] = true, -- tabard
 }
 
+-- MoP item links store the active reforge ID in link option 10.  The
+-- structured item-stat API returns the original (pre-reforge) values, so any
+-- API fallback used by the character-sheet highlight must apply the reforge
+-- before exposing those values.
+local MOP_REFORGE_TABLE_BASE = 112
+local MOP_REFORGE_COEFFICIENT = 0.4
+local MOP_REFORGE_STAT_ORDER = {
+    "SPIRIT",
+    "DODGE_RATING",
+    "PARRY_RATING",
+    "HIT_RATING",
+    "CRIT_RATING",
+    "HASTE_RATING",
+    "EXPERTISE_RATING",
+    "MASTERY_RATING",
+}
+
+local MOP_REFORGE_API_KEYS = {
+    SPIRIT = { "ITEM_MOD_SPIRIT_SHORT", "ITEM_MOD_SPIRIT" },
+    DODGE_RATING = { "ITEM_MOD_DODGE_RATING", "ITEM_MOD_DODGE_RATING_SHORT" },
+    PARRY_RATING = { "ITEM_MOD_PARRY_RATING", "ITEM_MOD_PARRY_RATING_SHORT" },
+    HIT_RATING = { "ITEM_MOD_HIT_RATING", "ITEM_MOD_HIT_RATING_SHORT" },
+    CRIT_RATING = { "ITEM_MOD_CRIT_RATING", "ITEM_MOD_CRIT_RATING_SHORT" },
+    HASTE_RATING = { "ITEM_MOD_HASTE_RATING", "ITEM_MOD_HASTE_RATING_SHORT" },
+    EXPERTISE_RATING = { "ITEM_MOD_EXPERTISE_RATING", "ITEM_MOD_EXPERTISE_RATING_SHORT" },
+    MASTERY_RATING = { "ITEM_MOD_MASTERY_RATING_SHORT", "ITEM_MOD_MASTERY_RATING" },
+}
+
+local function GetMOPAPIStatValue(apiStats, statKey)
+    local itemStatKeys = MOP_REFORGE_API_KEYS[statKey]
+    if not itemStatKeys then return 0 end
+
+    for _, itemStatKey in ipairs(itemStatKeys) do
+        local value = tonumber(apiStats[itemStatKey])
+        if value then
+            return value
+        end
+    end
+    return 0
+end
+
+local function GetMOPReforgePair(itemLink)
+    local tocVersion = tonumber(CCS.tocversion) or 0
+    if tocVersion < 50000 or tocVersion >= 60000 or type(itemLink) ~= "string" then
+        return nil, nil
+    end
+
+    local reforgeID
+    if type(GetItemInfoFromHyperlink) == "function"
+        and LinkUtil
+        and type(LinkUtil.SplitLinkOptions) == "function" then
+        local _, itemOptions = GetItemInfoFromHyperlink(itemLink)
+        if itemOptions then
+            reforgeID = tonumber(select(10, LinkUtil.SplitLinkOptions(itemOptions)))
+        end
+    end
+
+    -- Fallback for clients where LinkUtil is not available to addons.
+    if not reforgeID then
+        local payload = itemLink:match("|Hitem:([^|]+)|h")
+        if payload then
+            local fields = { strsplit(":", payload) }
+            reforgeID = tonumber(fields[10])
+        end
+    end
+
+    local tableIndex = reforgeID and (reforgeID - MOP_REFORGE_TABLE_BASE)
+    if not tableIndex or tableIndex < 1 or tableIndex > 56 then
+        return nil, nil
+    end
+
+    local currentIndex = 0
+    for sourceIndex = 1, #MOP_REFORGE_STAT_ORDER do
+        for destinationIndex = 1, #MOP_REFORGE_STAT_ORDER do
+            if sourceIndex ~= destinationIndex then
+                currentIndex = currentIndex + 1
+                if currentIndex == tableIndex then
+                    return MOP_REFORGE_STAT_ORDER[sourceIndex], MOP_REFORGE_STAT_ORDER[destinationIndex]
+                end
+            end
+        end
+    end
+
+    return nil, nil
+end
+
 -- ============================================================
 --  PARSE A SINGLE ITEM AND RETURN ITS STAT TOTALS
 -- ============================================================
 function CCS:ParseItemStats(unit, slot)
     local statTotals = CCS:NewStatTable()
 
+    local function SafeStatKeyword(keyword, fallback)
+        if type(keyword) == "string" and keyword ~= "" then
+            return keyword
+        end
+        return "\001CCS_MISSING_STAT_" .. fallback
+    end
+
     local statKeywords = {
-        [ITEM_MOD_CRIT_RATING_SHORT]   = "CRIT_RATING",
-        [RAID_BUFF_6]                  = "CRIT_RATING",
+        [SafeStatKeyword(ITEM_MOD_CRIT_RATING_SHORT, "CRIT")] = "CRIT_RATING",
+        [SafeStatKeyword(RAID_BUFF_6, "RAID_CRIT")] = "CRIT_RATING",
         ["к скорости передвижения"]    = "SPEED",
-        [ITEM_MOD_HASTE_RATING_SHORT]  = "HASTE_RATING",
-        [ITEM_MOD_MASTERY_RATING_SHORT]= "MASTERY_RATING",
-        [ITEM_MOD_CR_UNUSED_9_SHORT]   = "VERSATILITY",
-        [ITEM_MOD_VERSATILITY]         = "VERSATILITY",
-        [ITEM_MOD_CR_LIFESTEAL_SHORT]  = "LEECH",
-        [ITEM_MOD_CR_AVOIDANCE_SHORT]  = "AVOIDANCE",
-        [ITEM_MOD_CR_SPEED_SHORT]      = "SPEED",
-        [ITEM_MOD_STRENGTH_SHORT]      = "STRENGTH",
-        [ITEM_MOD_AGILITY_SHORT]       = "AGILITY",
-        [ITEM_MOD_INTELLECT_SHORT]     = "INTELLECT",
-        [ITEM_MOD_STAMINA_SHORT]       = "STAMINA",
+        [SafeStatKeyword(ITEM_MOD_HASTE_RATING_SHORT, "HASTE")] = "HASTE_RATING",
+        [SafeStatKeyword(ITEM_MOD_MASTERY_RATING_SHORT, "MASTERY")] = "MASTERY_RATING",
+        [SafeStatKeyword(ITEM_MOD_CR_UNUSED_9_SHORT, "VERSATILITY_UNUSED")] = "VERSATILITY",
+        [SafeStatKeyword(ITEM_MOD_VERSATILITY, "VERSATILITY")] = "VERSATILITY",
+        [SafeStatKeyword(ITEM_MOD_CR_LIFESTEAL_SHORT, "LEECH")] = "LEECH",
+        [SafeStatKeyword(ITEM_MOD_CR_AVOIDANCE_SHORT, "AVOIDANCE")] = "AVOIDANCE",
+        [SafeStatKeyword(ITEM_MOD_CR_SPEED_SHORT, "SPEED")] = "SPEED",
+        [SafeStatKeyword(ITEM_MOD_STRENGTH_SHORT, "STRENGTH")] = "STRENGTH",
+        [SafeStatKeyword(ITEM_MOD_AGILITY_SHORT, "AGILITY")] = "AGILITY",
+        [SafeStatKeyword(ITEM_MOD_INTELLECT_SHORT, "INTELLECT")] = "INTELLECT",
+        [SafeStatKeyword(ITEM_MOD_STAMINA_SHORT, "STAMINA")] = "STAMINA",
         ["к вероятности критического удара"] = "CRIT_RATING",
         ["kritischer Trefferwert"]     = "CRIT_RATING",
         ["au score de Coup critique"]  = "CRIT_RATING",
@@ -1506,6 +1601,15 @@ function CCS:ParseItemStats(unit, slot)
         ["Score de coup"]              = "CRIT_RATING",
         ["score de crit"]              = "CRIT_RATING",
     }
+
+    -- Spirit and hit were removed from later clients, so add them
+    -- conditionally for Classic versions instead of using nil table keys.
+    if type(ITEM_MOD_SPIRIT_SHORT) == "string" and ITEM_MOD_SPIRIT_SHORT ~= "" then
+        statKeywords[ITEM_MOD_SPIRIT_SHORT] = "SPIRIT"
+    end
+    if type(ITEM_MOD_HIT_RATING_SHORT) == "string" and ITEM_MOD_HIT_RATING_SHORT ~= "" then
+        statKeywords[ITEM_MOD_HIT_RATING_SHORT] = "HIT_RATING"
+    end
 
     local function applyStat(value, keyword)
         keyword = keyword:gsub("^%s+", ""):gsub("%s+$", "")
@@ -1625,7 +1729,10 @@ function CCS:ParseItemStats(unit, slot)
             local text = line:GetText()
             if text then
                 -- Grab enchant line before normalization
-                local enchant = text:match(ENCHANTED_TOOLTIP_LINE:gsub("%%s", "(.+)"))
+                local enchant
+                if type(ENCHANTED_TOOLTIP_LINE) == "string" then
+                    enchant = text:match(ENCHANTED_TOOLTIP_LINE:gsub("%%s", "(.+)"))
+                end
                 CCS.dprint("text before", i, ":", text)
 
                 -- Normalize
@@ -1809,6 +1916,77 @@ function CCS:ParseItemStats(unit, slot)
                         applyStat(valueKR, keywordKR)
                         matched = true
                     end
+                end
+            end
+        end
+    end
+
+    -- The tooltip layout differs between Classic locales.  If a wanted stat
+    -- was not found in text, fall back to the structured item-stat API.
+    local apiStats
+    if C_Item and type(C_Item.GetItemStats) == "function" then
+        apiStats = C_Item.GetItemStats(itemLink)
+    elseif type(GetItemStats) == "function" then
+        apiStats = GetItemStats(itemLink)
+    end
+
+    if apiStats then
+        local apiFallbackKeys = {
+            CRIT_RATING = { "ITEM_MOD_CRIT_RATING_SHORT", "ITEM_MOD_CRIT_RATING" },
+            HASTE_RATING = { "ITEM_MOD_HASTE_RATING_SHORT", "ITEM_MOD_HASTE_RATING" },
+            MASTERY_RATING = { "ITEM_MOD_MASTERY_RATING_SHORT", "ITEM_MOD_MASTERY_RATING" },
+            SPIRIT = { "ITEM_MOD_SPIRIT_SHORT", "ITEM_MOD_SPIRIT" },
+            HIT_RATING = { "ITEM_MOD_HIT_RATING_SHORT", "ITEM_MOD_HIT_RATING" },
+        }
+        local resolvedAPIStats = {}
+
+        -- Reforge parsing must never prevent the character-sheet highlight
+        -- from rendering.  If a client API differs, retain the old API values
+        -- and let the per-slot renderer continue.
+        local reforgeOK, reforgeError = pcall(function()
+            for resultKey in pairs(apiFallbackKeys) do
+                resolvedAPIStats[resultKey] = GetMOPAPIStatValue(apiStats, resultKey)
+            end
+
+            local reforgeSource, reforgeDestination = GetMOPReforgePair(itemLink)
+            if reforgeSource and reforgeDestination then
+                local sourceValue = GetMOPAPIStatValue(apiStats, reforgeSource)
+                if sourceValue > 0 then
+                    local reforgeAmount = math.floor(sourceValue * MOP_REFORGE_COEFFICIENT)
+                    local destinationValue = GetMOPAPIStatValue(apiStats, reforgeDestination)
+
+                    resolvedAPIStats[reforgeSource] = sourceValue - reforgeAmount
+                    resolvedAPIStats[reforgeDestination] = destinationValue + reforgeAmount
+                    CCS.dprint(
+                        "MoP reforge fallback:",
+                        reforgeSource,
+                        "->",
+                        reforgeDestination,
+                        reforgeAmount
+                    )
+                end
+            end
+        end)
+
+        if not reforgeOK then
+            CCS.dprint("MoP reforge fallback failed:", reforgeError)
+            wipe(resolvedAPIStats)
+            for resultKey, itemStatKeys in pairs(apiFallbackKeys) do
+                for _, itemStatKey in ipairs(itemStatKeys) do
+                    local value = tonumber(apiStats[itemStatKey])
+                    if value then
+                        resolvedAPIStats[resultKey] = value
+                        break
+                    end
+                end
+            end
+        end
+
+        for resultKey in pairs(apiFallbackKeys) do
+            if (statTotals[resultKey] or 0) == 0 then
+                local value = tonumber(resolvedAPIStats[resultKey])
+                if value and value > 0 then
+                    statTotals[resultKey] = value
                 end
             end
         end
@@ -2751,6 +2929,13 @@ end
 function CCS:ShowStatHighlights(statRowData)
     local statKey = CCS.statKeyMap[statRowData.key]
     if not statKey then return end
+    local tooltipTotalsBySlot
+    if type(CCS.GetMOPTooltipStatTotalsBySlot) == "function" then
+        local ok, result = pcall(CCS.GetMOPTooltipStatTotalsBySlot, CCS)
+        if ok and type(result) == "table" then
+            tooltipTotalsBySlot = result
+        end
+    end
     --print("Show", statRowData.key)
     -- Loop through all equipment slots
     for slot = 1, 17 do
@@ -2763,7 +2948,44 @@ function CCS:ShowStatHighlights(statRowData)
             local ccsStat = slotFrame.ccsStat
             if ccsStat then
                 -- Get the stat value for this item
-                local value = CCS:GetItemStatValue("player", slot, statKey)
+                local value = 0
+                local totals = tooltipTotalsBySlot and tooltipTotalsBySlot[slot]
+                if type(totals) ~= "table" then
+                    local ok, parsedTotals = pcall(CCS.ParseItemStats, CCS, "player", slot)
+                    totals = parsedTotals
+                    if not ok or type(totals) ~= "table" then
+                        local errorText = tostring(totals)
+                        if CCS.mopStatHighlightLastError ~= errorText then
+                            CCS.mopStatHighlightLastError = errorText
+                            print("|cffff0000ChonkyCharacterSheet|r stat highlight fallback: " .. errorText)
+                        end
+
+                        totals = {}
+                        local itemLink = GetInventoryItemLink("player", slot)
+                        local apiStats
+                        if itemLink and C_Item and type(C_Item.GetItemStats) == "function" then
+                            apiStats = C_Item.GetItemStats(itemLink)
+                        elseif itemLink and type(GetItemStats) == "function" then
+                            apiStats = GetItemStats(itemLink)
+                        end
+
+                        if apiStats then
+                            totals.CRIT_RATING = tonumber(apiStats.ITEM_MOD_CRIT_RATING_SHORT or apiStats.ITEM_MOD_CRIT_RATING) or 0
+                            totals.HASTE_RATING = tonumber(apiStats.ITEM_MOD_HASTE_RATING_SHORT or apiStats.ITEM_MOD_HASTE_RATING) or 0
+                            totals.MASTERY_RATING = tonumber(apiStats.ITEM_MOD_MASTERY_RATING_SHORT or apiStats.ITEM_MOD_MASTERY_RATING) or 0
+                            totals.SPIRIT = tonumber(apiStats.ITEM_MOD_SPIRIT_SHORT or apiStats.ITEM_MOD_SPIRIT) or 0
+                            totals.HIT_RATING = tonumber(apiStats.ITEM_MOD_HIT_RATING_SHORT or apiStats.ITEM_MOD_HIT_RATING) or 0
+                        end
+                    end
+                end
+
+                if type(statKey) == "table" then
+                    for _, groupedKey in ipairs(statKey) do
+                        value = value + (totals[groupedKey] or 0)
+                    end
+                else
+                    value = totals[statKey] or 0
+                end
 
                 if value and value > 0 then
                     -- Update icon + text
