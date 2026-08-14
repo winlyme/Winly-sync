@@ -537,6 +537,62 @@ local function ccs_cshow()
     CharacterModelScene.ControlFrame:Hide()
 end
 
+local function UpdateMOPItemLevelSummary()
+    local btn = _G["CSPilvl"]
+    local btnfont1 = _G["CSPilvlfs1"]
+    if not btn or not btnfont1 then return end
+
+    CCS.MOPItemLevelUpdateToken = (CCS.MOPItemLevelUpdateToken or 0) + 1
+    local updateToken = CCS.MOPItemLevelUpdateToken
+
+    -- The first GetAverageItemLevel() result includes usable items in the
+    -- bags. Prime those items before asking the client for that value.
+    local getNumSlots = C_Container and C_Container.GetContainerNumSlots or GetContainerNumSlots
+    local getItemLink = C_Container and C_Container.GetContainerItemLink or GetContainerItemLink
+    if getNumSlots and getItemLink then
+        for bag = 0, (NUM_BAG_SLOTS or 4) do
+            for slot = 1, (getNumSlots(bag) or 0) do
+                local link = getItemLink(bag, slot)
+                if link then
+                    local itemID, _, _, equipLoc
+                    if GetItemInfoInstant then
+                        itemID, _, _, equipLoc = GetItemInfoInstant(link)
+                    end
+                    if equipLoc and equipLoc ~= "" then
+                        GetItemInfo(link)
+                    end
+                    if equipLoc and equipLoc ~= ""
+                        and C_Item and type(C_Item.RequestLoadItemDataByID) == "function" then
+                        if itemID then
+                            C_Item.RequestLoadItemDataByID(itemID)
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    CCS.PreloadEquippedItemInfo("player")
+    CCS.WaitForItemInfoReady("player", function()
+        if updateToken ~= CCS.MOPItemLevelUpdateToken then return end
+
+        -- Read these values only after the newly equipped item's data is
+        -- available. The old code captured them before the asynchronous wait,
+        -- leaving the summary one equipment change behind.
+        local overallAverage, equippedAverage = GetAverageItemLevel()
+        overallAverage = tonumber(overallAverage) or 0
+        equippedAverage = tonumber(equippedAverage) or overallAverage
+
+        local color = CCS:GetAverageEquippedRarityHex("player") or "ffffff"
+        btnfont1:SetText(format(
+            "|cFF%s%.2f / %.2f|r",
+            color,
+            equippedAverage,
+            overallAverage
+        ))
+    end)
+end
+
 local function InitStats()
     if not CharacterStatsPane then return end
 
@@ -566,11 +622,6 @@ local function InitStats()
         local btnfont1 = _G["CSPilvlfs1"] or btn:CreateFontString("CSPilvlfs1")
         --local btnfont2 = _G["CSPilvlfs2"] or btn:CreateFontString("CSPilvlfs2")
         local btntex = _G["CSPilvltex"] or btn:CreateTexture("CSPilvltex", "BACKGROUND", nil, 1)
-        local avgItemLevel, avgItemLevelEquipped, avgItemLevelPvP = GetAverageItemLevel();
-        local Color = "a336ed"
-        local tt_name = ""
-        local tt_desc = ""
-
         btn:SetParent(CharacterStatsPane)
         btn:ClearAllPoints()
         btn:SetSize(230, 23*(option("fontsize_cilvl") or 20) /20)
@@ -586,18 +637,7 @@ local function InitStats()
         btnfont1:SetPoint("CENTER", btn, "CENTER", 0 ,0)
         btnfont1:SetFont(option("fontname_cilvl") or CCS.fontname, (option("fontsize_cilvl") or 20))
 
-        CCS.PreloadEquippedItemInfo("player")
-        
-        CCS.WaitForItemInfoReady("player", function()
-            local color = CCS:GetAverageEquippedRarityHex("player")
-            Color = color
-
-            avgItemLevelEquipped = format("%.2f", avgItemLevelEquipped)
-            avgItemLevel = format("%.2f", avgItemLevel)
-            avgItemLevelPvP = format("%.2f", avgItemLevelPvP)
-
-            btnfont1:SetText(format("|cFF%s%s / %s|r", Color, avgItemLevelEquipped, avgItemLevel))
-        end)
+        UpdateMOPItemLevelSummary()
 
         local scrollBox = CharacterStatsPane.ScrollBox
         if scrollBox and type(scrollBox.RegisterCallback) == "function"
@@ -3697,13 +3737,22 @@ function CCS.MOPCharacterSheetEventHandler(event, ...)
 
     if event == "PLAYER_EQUIPMENT_CHANGED" then
         TryLoopItems()
+        UpdateMOPItemLevelSummary()
         if not CCS.characterUpdatePending then
             CCS.characterUpdatePending = true
             C_Timer.After(0.2, function()
                 CCS.characterUpdatePending = false
                 TryLoopItems()
+                UpdateMOPItemLevelSummary()
             end)
         end
+        return true
+    elseif event == "PLAYER_AVG_ITEM_LEVEL_UPDATE"
+        or event == "BAG_UPDATE_DELAYED"
+        or event == "ACTIVE_TALENT_GROUP_CHANGED"
+        or event == "PLAYER_SPECIALIZATION_CHANGED" then
+        UpdateMOPItemLevelSummary()
+        C_Timer.After(0.2, UpdateMOPItemLevelSummary)
         return true
     elseif event == "CCS_EVENT_CSHOW" then
 
@@ -3712,6 +3761,7 @@ function CCS.MOPCharacterSheetEventHandler(event, ...)
             C_Timer.After(0.2, function()
                 CCS.characterUpdatePending = false
                 TryLoopItems()
+                UpdateMOPItemLevelSummary()
                 ccs_cshow()
             end)
         end

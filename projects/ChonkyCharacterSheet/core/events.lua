@@ -181,6 +181,7 @@ local eventHandlers = {
     -- Blizzard events
     ["ACTIVE_TALENT_GROUP_CHANGED"] = {
         { fn = WrapHandler("ACTIVE_TALENT_GROUP_CHANGED", CCS.CharacterStatsEventHandler, "CharacterStatsEventHandler"), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("ACTIVE_TALENT_GROUP_CHANGED", CCS.MOPCharacterSheetEventHandler, "MOPCharacterSheetEventHandler"), versions = { CCS.MOP } },
     },
 
     ["ACTIVE_PLAYER_SPECIALIZATION_CHANGED"] = {
@@ -196,6 +197,10 @@ local eventHandlers = {
 
     ["AVOIDANCE_UPDATE"] = {
         { fn = WrapHandler("AVOIDANCE_UPDATE", CCS.CharacterStatsEventHandler, "CharacterStatsEventHandler"), versions = { CCS.RETAIL } },
+    },
+
+    ["BAG_UPDATE_DELAYED"] = {
+        { fn = WrapHandler("BAG_UPDATE_DELAYED", CCS.MOPCharacterSheetEventHandler, "MOPCharacterSheetEventHandler"), versions = { CCS.MOP } },
     },
 
     ["ITEM_PUSH"] = {
@@ -292,6 +297,7 @@ local eventHandlers = {
 
     ["PLAYER_AVG_ITEM_LEVEL_UPDATE"] = {
         { fn = WrapHandler("PLAYER_AVG_ITEM_LEVEL_UPDATE", CCS.CharacterStatsEventHandler, "CharacterStatsEventHandler"), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_AVG_ITEM_LEVEL_UPDATE", CCS.MOPCharacterSheetEventHandler, "MOPCharacterSheetEventHandler"), versions = { CCS.MOP } },
     },
 
     ["PLAYER_ENTERING_WORLD"] = {
@@ -468,6 +474,7 @@ local eventHandlers = {
     ["PLAYER_SPECIALIZATION_CHANGED"] = {
         { fn = WrapHandler("PLAYER_SPECIALIZATION_CHANGED", CCS.CharacterSheetEventHandler, "CharacterSheetEventHandler"), versions = { CCS.RETAIL } },
         { fn = WrapHandler("PLAYER_SPECIALIZATION_CHANGED", CCS.CharacterStatsEventHandler, "CharacterStatsEventHandler"), versions = { CCS.RETAIL } },
+        { fn = WrapHandler("PLAYER_SPECIALIZATION_CHANGED", CCS.MOPCharacterSheetEventHandler, "MOPCharacterSheetEventHandler"), versions = { CCS.MOP } },
     },
     ["PLAYER_STARTED_TURNING"] = {
         { fn = WrapHandler("PLAYER_STARTED_TURNING", CCS.CharacterStatsEventHandler, "CharacterStatsEventHandler"), versions = { CCS.RETAIL } },
