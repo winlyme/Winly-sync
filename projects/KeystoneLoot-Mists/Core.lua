@@ -4,7 +4,7 @@ _G.KeystoneLootMists = Addon
 
 Addon.name = ADDON_NAME
 Addon.displayName = "决战奥格瑞玛掉落"
-Addon.version = "0.2.4"
+Addon.version = "0.3.0"
 
 Addon.TIERS = {
     [1] = { name = "可选", short = "选", color = { 0.20, 0.95, 0.35 }, hex = "33f259" },
@@ -336,11 +336,15 @@ function Addon:HandleSlash(message)
         self.db.settings.minimap = not self.db.settings.minimap
         self.UI.minimapButton:SetShown(self.db.settings.minimap)
         self:Print("小地图按钮已" .. (self.db.settings.minimap and "显示" or "隐藏"))
+    elseif command == "test" or command == "demo" then
+        local shown = self.UI:ToggleCompetitionDemo()
+        self:Print(shown and "队伍需求测试预览已打开；再次输入 /ksl test 可关闭"
+            or "队伍需求测试预览已关闭")
     elseif command == "reset" then
         self:ResetPosition()
         self:Print("窗口位置已重置")
     else
-        self:Print("命令：/ksl（打开界面）、/ksl reminder、/ksl minimap、/ksl reset")
+        self:Print("命令：/ksl（打开界面）、/ksl test、/ksl reminder、/ksl minimap、/ksl reset")
     end
 end
 

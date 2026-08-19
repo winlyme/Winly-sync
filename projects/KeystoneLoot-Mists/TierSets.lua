@@ -18,6 +18,46 @@ TierSets.SPEC_TO_SET = {
     [102] = 1197, [103] = 1199, [104] = 1196, [105] = 1198,
 }
 
+TierSets.SPEC_TO_CLASS = {
+    [71] = 1, [72] = 1, [73] = 1,
+    [65] = 2, [66] = 2, [70] = 2,
+    [253] = 3, [254] = 3, [255] = 3,
+    [259] = 4, [260] = 4, [261] = 4,
+    [256] = 5, [257] = 5, [258] = 5,
+    [250] = 6, [251] = 6, [252] = 6,
+    [262] = 7, [263] = 7, [264] = 7,
+    [62] = 8, [63] = 8, [64] = 8,
+    [265] = 9, [266] = 9, [267] = 9,
+    [268] = 10, [269] = 10, [270] = 10,
+    [102] = 11, [103] = 11, [104] = 11, [105] = 11,
+}
+
+TierSets.TOKEN_GROUPS = {
+    VANQUISHER = { classIDs = { 4, 6, 8, 11 } },
+    CONQUEROR = { classIDs = { 2, 5, 9 } },
+    PROTECTOR = { classIDs = { 1, 3, 7 } },
+}
+
+TierSets.CLASS_TO_TOKEN_GROUP = {}
+for groupKey, group in pairs(TierSets.TOKEN_GROUPS) do
+    group.classLookup = {}
+    for _, classID in ipairs(group.classIDs) do
+        group.classLookup[classID] = true
+        TierSets.CLASS_TO_TOKEN_GROUP[classID] = groupKey
+    end
+end
+
+-- T16 套装物品顺序：头、肩、胸、手、腿。
+TierSets.TIER_SLOT_KEYS = { "HEAD", "SHOULDER", "CHEST", "HANDS", "LEGS" }
+TierSets.TIER_INVENTORY_SLOTS = { 1, 3, 5, 10, 7 }
+
+-- 熊猫人之谜三档职业套装的 ItemSet ID 区间。
+TierSets.RAID_TIER_SET_RANGES = {
+    { tier = 16, firstSetID = 1179, lastSetID = 1201 },
+    { tier = 15, firstSetID = 1151, lastSetID = 1173 },
+    { tier = 14, firstSetID = 1123, lastSetID = 1145 },
+}
+
 TierSets.SET_BONUSES = {
     [1179] = { 144503, 144502 }, [1180] = { 144436, 144441 },
     [1181] = { 145072, 145091 }, [1182] = { 144998, 145003 },
@@ -114,7 +154,13 @@ TierSets.ITEMS = {
     },
 }
 
+TierSets.SET_TO_CLASS = {}
+for specID, setID in pairs(TierSets.SPEC_TO_SET) do
+    TierSets.SET_TO_CLASS[setID] = TierSets.SPEC_TO_CLASS[specID]
+end
+
 TierSets.ITEM_VARIANT_KEYS = {}
+TierSets.ITEM_TIER_INFO = {}
 for _, difficultySets in pairs(TierSets.ITEMS) do
     for setID, items in pairs(difficultySets) do
         for slotIndex, itemID in ipairs(items) do
@@ -123,17 +169,109 @@ for _, difficultySets in pairs(TierSets.ITEMS) do
     end
 end
 
+for difficultyID, difficultySets in pairs(TierSets.ITEMS) do
+    for setID, items in pairs(difficultySets) do
+        local classID = TierSets.SET_TO_CLASS[setID]
+        local groupKey = TierSets.CLASS_TO_TOKEN_GROUP[classID]
+        for slotIndex, itemID in ipairs(items) do
+            TierSets.ITEM_TIER_INFO[itemID] = {
+                kind = "tier",
+                itemID = itemID,
+                difficultyID = difficultyID,
+                setID = setID,
+                classID = classID,
+                groupKey = groupKey,
+                slotIndex = slotIndex,
+                slotKey = TierSets.TIER_SLOT_KEYS[slotIndex],
+                inventorySlot = TierSets.TIER_INVENTORY_SLOTS[slotIndex],
+            }
+        end
+    end
+end
+
+TierSets.TOKEN_ITEMS = {}
+
+local function RegisterTokenItems(difficultyID, groupKey, items)
+    for slotIndex, itemID in ipairs(items) do
+        TierSets.TOKEN_ITEMS[itemID] = {
+            kind = "token",
+            itemID = itemID,
+            difficultyID = difficultyID,
+            groupKey = groupKey,
+            slotIndex = slotIndex,
+            slotKey = TierSets.TIER_SLOT_KEYS[slotIndex],
+            inventorySlot = TierSets.TIER_INVENTORY_SLOTS[slotIndex],
+        }
+    end
+end
+
+-- 团队查找器（兼容识别；当前界面不提供该难度）。
+RegisterTokenItems(7, "VANQUISHER", { 99748, 99754, 99742, 99745, 99751 })
+RegisterTokenItems(7, "CONQUEROR", { 99749, 99755, 99743, 99746, 99752 })
+RegisterTokenItems(7, "PROTECTOR", { 99750, 99756, 99744, 99747, 99753 })
+
+-- 弹性、普通、英雄。
+RegisterTokenItems(14, "VANQUISHER", { 99671, 99668, 99677, 99680, 99674 })
+RegisterTokenItems(14, "CONQUEROR", { 99672, 99669, 99678, 99681, 99675 })
+RegisterTokenItems(14, "PROTECTOR", { 99673, 99670, 99679, 99667, 99676 })
+RegisterTokenItems(3, "VANQUISHER", { 99683, 99685, 99696, 99682, 99684 })
+RegisterTokenItems(3, "CONQUEROR", { 99689, 99690, 99686, 99687, 99688 })
+RegisterTokenItems(3, "PROTECTOR", { 99694, 99695, 99691, 99692, 99693 })
+RegisterTokenItems(5, "VANQUISHER", { 99723, 99717, 99714, 99720, 99726 })
+RegisterTokenItems(5, "CONQUEROR", { 99724, 99718, 99715, 99721, 99712 })
+RegisterTokenItems(5, "PROTECTOR", { 99725, 99719, 99716, 99722, 99713 })
+
 function TierSets:GetVariantKey(itemID)
     return self.ITEM_VARIANT_KEYS[tonumber(itemID)]
 end
 
 function TierSets:IsTierToken(itemID)
+    return self.TOKEN_ITEMS[tonumber(itemID)] ~= nil
+end
+
+function TierSets:GetTokenInfo(itemID)
+    return self.TOKEN_ITEMS[tonumber(itemID)]
+end
+
+function TierSets:GetTierItemInfo(itemID)
+    return self.ITEM_TIER_INFO[tonumber(itemID)]
+end
+
+function TierSets:GetRaidTierForSetID(setID)
+    setID = tonumber(setID)
+    if not setID then
+        return nil
+    end
+    for _, range in ipairs(self.RAID_TIER_SET_RANGES) do
+        if setID >= range.firstSetID and setID <= range.lastSetID then
+            return range.tier
+        end
+    end
+end
+
+function TierSets:GetRaidTierForItem(itemID, setID)
+    if self.ITEM_TIER_INFO[tonumber(itemID)] then
+        return 16
+    end
+    return self:GetRaidTierForSetID(setID)
+end
+
+function TierSets:GetCompetitionInfo(itemID)
     itemID = tonumber(itemID)
-    return itemID and (
-        (itemID >= 99742 and itemID <= 99756)
-        or (itemID >= 99682 and itemID <= 99696)
-        or (itemID >= 99712 and itemID <= 99726)
-    )
+    return self.TOKEN_ITEMS[itemID] or self.ITEM_TIER_INFO[itemID]
+end
+
+function TierSets:GetTokenGroupForClass(classID)
+    return self.CLASS_TO_TOKEN_GROUP[tonumber(classID)]
+end
+
+function TierSets:IsClassInTokenGroup(classID, groupKey)
+    local group = self.TOKEN_GROUPS[groupKey]
+    return group and group.classLookup[tonumber(classID)] or false
+end
+
+function TierSets:GetInventorySlotForTierSlot(slotIndex)
+    return self.TIER_INVENTORY_SLOTS[tonumber(slotIndex)]
 end
 
 function TierSets:GetSet(specID, difficultyID)

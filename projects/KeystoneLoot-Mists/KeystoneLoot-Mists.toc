@@ -2,10 +2,10 @@
 ## Interface-Mists: 50504
 ## Title: |cff9d5db8KeystoneLoot Mists|r
 ## Title-zhCN: |cff9d5db8KeystoneLoot 熊猫人版|r
-## Notes: Siege of Orgrimmar equipment, shared favorites, and T16 set preview
-## Notes-zhCN: 决战奥格瑞玛装备、跨难度收藏与 T16 套装速览
+## Notes: Siege of Orgrimmar equipment, group competition, shared favorites, and T16 set preview
+## Notes-zhCN: 决战奥格瑞玛装备、队伍需求对比、跨难度收藏与 T16 套装速览
 ## Author: Winly
-## Version: 0.2.4
+## Version: 0.3.0
 ## IconTexture: Interface\Icons\INV_Misc_Map02
 ## Category: Dungeons & Raids
 ## Category-zhCN: 地下城与团队副本
@@ -15,5 +15,6 @@
 Core.lua
 TierSets.lua
 Journal.lua
+Competition.lua
 UI.lua
 Reminder.lua
