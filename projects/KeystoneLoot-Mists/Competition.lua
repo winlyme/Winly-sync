@@ -6,6 +6,7 @@ Addon.Competition = Competition
 local CACHE_TTL = 120
 local INSPECT_INTERVAL = 2
 local INSPECT_TIMEOUT = 4
+local INITIAL_RETRY_DELAY = 5
 local MAX_MISTS_CLASS_ID = 11
 
 local REFRESH_FAILURE_STATUS = {
@@ -83,29 +84,87 @@ end
 
 local function GetDetailedItemLevel(link, itemID)
     if C_Item and C_Item.GetDetailedItemLevelInfo and link then
-        local ok, itemLevel = pcall(C_Item.GetDetailedItemLevelInfo, link)
+        local ok, itemLevel, _, baseItemLevel = pcall(C_Item.GetDetailedItemLevelInfo, link)
         if ok and itemLevel then
-            return itemLevel
+            return itemLevel, baseItemLevel
         end
     end
     if _G.GetDetailedItemLevelInfo and link then
-        local ok, itemLevel = pcall(_G.GetDetailedItemLevelInfo, link)
+        local ok, itemLevel, _, baseItemLevel = pcall(_G.GetDetailedItemLevelInfo, link)
         if ok and itemLevel then
-            return itemLevel
+            return itemLevel, baseItemLevel
         end
     end
     local _, _, _, itemLevel = Addon:GetItemInfo(link or itemID)
-    return itemLevel
+    return itemLevel, itemLevel
+end
+
+local upgradeTooltip
+
+local function BuildUpgradePattern(format)
+    if not format or format == "" then
+        return nil
+    end
+    local token = "KSLDIGITPLACEHOLDER"
+    local pattern = string.gsub(format, "%%d", token)
+    pattern = string.gsub(pattern, "([^%w%s])", "%%%1")
+    pattern = string.gsub(pattern, "%s+", "%%s*")
+    pattern = string.gsub(pattern, token, function()
+        return "(%d+)"
+    end)
+    return "^" .. pattern .. "$"
+end
+
+local function GetUpgradeProgress(unit, slot)
+    local formats = {}
+    if _G.ITEM_UPGRADE_TOOLTIP_FORMAT then
+        table.insert(formats, _G.ITEM_UPGRADE_TOOLTIP_FORMAT)
+    end
+    if _G.ITEM_UPGRADE_FRAME_CURRENT_UPGRADE_FORMAT then
+        table.insert(formats, _G.ITEM_UPGRADE_FRAME_CURRENT_UPGRADE_FORMAT)
+    end
+    if #formats == 0 then
+        return nil
+    end
+    if not upgradeTooltip then
+        upgradeTooltip = CreateFrame(
+            "GameTooltip",
+            "KeystoneLootMistsUpgradeScanner",
+            UIParent,
+            "GameTooltipTemplate"
+        )
+        upgradeTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    end
+    upgradeTooltip:ClearLines()
+    upgradeTooltip:SetInventoryItem(unit, slot)
+    for lineIndex = 1, upgradeTooltip:NumLines() do
+        local line = _G["KeystoneLootMistsUpgradeScannerTextLeft" .. lineIndex]
+        local text = line and line:GetText()
+        if text then
+            for _, format in ipairs(formats) do
+                local pattern = BuildUpgradePattern(format)
+                local current, maximum
+                if pattern then
+                    current, maximum = string.match(text, pattern)
+                end
+                current = tonumber(current)
+                maximum = tonumber(maximum)
+                if current and maximum then
+                    return current, maximum
+                end
+            end
+        end
+    end
+    return nil
 end
 
 local function GetTargetItemLevel(item)
     if not item then
         return nil
     end
-    local itemLevel = tonumber(GetDetailedItemLevel(item.link, item.itemID))
-    if not itemLevel or itemLevel <= 0 then
-        itemLevel = tonumber(item.itemLevel)
-    end
+    local detailedItemLevel = tonumber(GetDetailedItemLevel(item.link, item.itemID))
+    local cachedItemLevel = tonumber(item.itemLevel)
+    local itemLevel = math.max(detailedItemLevel or 0, cachedItemLevel or 0)
     if itemLevel and itemLevel > 0 then
         return itemLevel
     end
@@ -127,12 +186,108 @@ local function GetGroupUnits()
     return units
 end
 
+local function GetWallClockTime()
+    if GetServerTime then
+        local value = tonumber(GetServerTime())
+        if value and value > 0 then
+            return value
+        end
+    end
+    return time and time() or 0
+end
+
+local function GetUnitGuildName(unit)
+    if not GetGuildInfo or not unit then
+        return nil
+    end
+    local guildName = GetGuildInfo(unit)
+    return guildName and guildName ~= "" and guildName or nil
+end
+
+local function CopyTierSlots(slots)
+    local result = {}
+    for inventorySlot, item in pairs(slots or {}) do
+        if item then
+            result[inventorySlot] = {
+                slot = item.slot,
+                itemID = item.itemID,
+                link = item.link,
+                name = item.name,
+                quality = item.quality,
+                equipLoc = item.equipLoc,
+                icon = item.icon,
+                itemLevel = item.itemLevel,
+                baseItemLevel = item.baseItemLevel,
+                upgradeCurrent = item.upgradeCurrent,
+                upgradeMax = item.upgradeMax,
+                upgradeText = item.upgradeText,
+                setID = item.setID,
+                raidTier = item.raidTier,
+                variantKey = item.variantKey,
+                tierInfo = item.tierInfo and {
+                    kind = item.tierInfo.kind,
+                    itemID = item.tierInfo.itemID,
+                    difficultyID = item.tierInfo.difficultyID,
+                    setID = item.tierInfo.setID,
+                    classID = item.tierInfo.classID,
+                    groupKey = item.tierInfo.groupKey,
+                    slotIndex = item.tierInfo.slotIndex,
+                    slotKey = item.tierInfo.slotKey,
+                    inventorySlot = item.tierInfo.inventorySlot,
+                } or nil,
+            }
+        end
+    end
+    return result
+end
+
 function Competition:GetFreshCache(guid)
     local cached = guid and self.unitCache[guid]
     if cached and GetTime() - cached.timestamp <= CACHE_TTL then
         return cached
     end
     return nil
+end
+
+function Competition:GetSavedGuildCache(guid)
+    local guildName = GetUnitGuildName("player")
+    local saved = Addon.db and Addon.db.guildTierCache and Addon.db.guildTierCache[guid]
+    if saved and guildName and saved.guildName == guildName then
+        return saved
+    end
+    return nil
+end
+
+function Competition:GetTeamTierCache(guid)
+    return guid and (self.unitCache[guid] or self:GetSavedGuildCache(guid)) or nil
+end
+
+function Competition:SaveGuildTierCache(guid, unit, cached)
+    if not Addon.db or not Addon.db.guildTierCache or not guid or not cached then
+        return
+    end
+    if UnitIsUnit and UnitIsUnit(unit, "player") then
+        return
+    end
+    local playerGuild = GetUnitGuildName("player")
+    local member = self.membersByGUID[guid]
+    local memberGuild = GetUnitGuildName(unit) or (member and member.guildName)
+    if not playerGuild or playerGuild ~= memberGuild then
+        return
+    end
+    local fullName, shortName = GetFullUnitName(unit)
+    local _, classFile, classID = UnitClass(unit)
+    Addon.db.guildTierCache[guid] = {
+        guid = guid,
+        name = member and member.name or shortName or "未知成员",
+        fullName = member and member.fullName or fullName,
+        classID = member and member.classID or classID,
+        classFile = member and member.classFile or classFile,
+        guildName = playerGuild,
+        specID = cached.specID,
+        slots = CopyTierSlots(cached.slots),
+        updatedAt = cached.updatedAt,
+    }
 end
 
 function Competition:CreateCandidate(unit)
@@ -152,11 +307,12 @@ function Competition:CreateCandidate(unit)
         fullName = fullName,
         classID = classID,
         classFile = classFile,
+        guildName = GetUnitGuildName(unit),
         status = UnitIsConnected(unit) and "queued" or "offline",
     }
 end
 
-function Competition:RefreshGroupMembers()
+function Competition:RefreshGroupMembers(forceRefresh)
     local membersByGUID = {}
     for _, unit in ipairs(GetGroupUnits()) do
         local candidate = self:CreateCandidate(unit)
@@ -166,31 +322,74 @@ function Competition:RefreshGroupMembers()
     end
     self.membersByGUID = membersByGUID
 
-    for guid in pairs(self.unitCache) do
+    for guid in pairs(self.pendingInitialRefresh) do
         if not membersByGUID[guid] then
+            self.pendingInitialRefresh[guid] = nil
+            self.initialRetryScheduled[guid] = nil
+        end
+    end
+    for guid in pairs(self.groupScanCompleted) do
+        if not membersByGUID[guid] then
+            self.groupScanCompleted[guid] = nil
+        end
+    end
+
+    local playerGUID = UnitGUID("player")
+    for guid in pairs(self.unitCache) do
+        if guid ~= playerGUID and not membersByGUID[guid] then
             self.unitCache[guid] = nil
         end
     end
 
     WipeTable(self.backgroundQueue)
     WipeTable(self.backgroundQueued)
+    WipeTable(self.backgroundForceRefresh)
     for guid in pairs(membersByGUID) do
-        if not self:GetFreshCache(guid) and (not self.active or self.active.guid ~= guid) then
+        if not self.groupScanCompleted[guid] then
+            self.pendingInitialRefresh[guid] = true
+        end
+        if (forceRefresh or self.pendingInitialRefresh[guid])
+            and (not self.active or self.active.guid ~= guid) then
             table.insert(self.backgroundQueue, guid)
             self.backgroundQueued[guid] = true
+            self.backgroundForceRefresh[guid] = forceRefresh or nil
         end
     end
     self:NotifyUpdated()
     self:ProcessQueue()
 end
 
-function Competition:QueueBackgroundCandidate(guid)
+function Competition:ScheduleInitialRetry(guid)
+    if not guid or not self.pendingInitialRefresh[guid] or self.initialRetryScheduled[guid] then
+        return
+    end
+    self.initialRetryScheduled[guid] = true
+    C_Timer.After(INITIAL_RETRY_DELAY, function()
+        self.initialRetryScheduled[guid] = nil
+        if self.pendingInitialRefresh[guid] and self.membersByGUID[guid] then
+            self:QueueBackgroundCandidate(guid, true)
+            self:ProcessQueue()
+        end
+    end)
+end
+
+function Competition:RefreshTeamTierEquipment()
+    local playerGUID = UnitGUID("player")
+    if playerGUID then
+        local cached = self:ScanUnit("player", playerGUID)
+        cached.specID = Addon:GetCurrentSpecID()
+    end
+    self:RefreshGroupMembers(true)
+end
+
+function Competition:QueueBackgroundCandidate(guid, forceRefresh)
     if not guid or not self.membersByGUID[guid] or self.backgroundQueued[guid]
         or (self.active and self.active.guid == guid) then
         return
     end
     table.insert(self.backgroundQueue, guid)
     self.backgroundQueued[guid] = true
+    self.backgroundForceRefresh[guid] = forceRefresh or nil
 end
 
 function Competition:GetTargetSlots(item, tierInfo)
@@ -340,6 +539,14 @@ function Competition:GetEquippedItem(unit, slot)
     local equipLoc = itemInfo[9]
     local icon = itemInfo[10]
     local setID = tonumber(itemInfo[16])
+    local itemLevel, baseItemLevel = GetDetailedItemLevel(link, itemID)
+    local upgradeCurrent, upgradeMax = GetUpgradeProgress(unit, slot)
+    local upgradeText
+    if upgradeCurrent and upgradeCurrent > 0 and upgradeMax and upgradeMax > 0 then
+        upgradeText = ("%d/%d"):format(upgradeCurrent, upgradeMax)
+    elseif itemLevel and baseItemLevel and itemLevel > baseItemLevel then
+        upgradeText = ("+%d"):format(itemLevel - baseItemLevel)
+    end
     return {
         slot = slot,
         itemID = itemID,
@@ -348,7 +555,11 @@ function Competition:GetEquippedItem(unit, slot)
         quality = quality,
         equipLoc = equipLoc,
         icon = icon,
-        itemLevel = GetDetailedItemLevel(link, itemID),
+        itemLevel = itemLevel,
+        baseItemLevel = baseItemLevel,
+        upgradeCurrent = upgradeCurrent,
+        upgradeMax = upgradeMax,
+        upgradeText = upgradeText,
         setID = setID,
         raidTier = Addon.TierSets and Addon.TierSets:GetRaidTierForItem(itemID, setID),
         variantKey = Addon:GetItemVariantKey({ itemID = itemID, name = name }),
@@ -377,8 +588,15 @@ function Competition:ScanUnit(unit, guid)
         specID = specID,
         slots = slots,
         timestamp = GetTime(),
+        updatedAt = GetWallClockTime(),
     }
     self.unitCache[guid] = cached
+    if self.membersByGUID[guid] then
+        self.groupScanCompleted[guid] = true
+    end
+    self.pendingInitialRefresh[guid] = nil
+    self.initialRetryScheduled[guid] = nil
+    self:SaveGuildTierCache(guid, unit, cached)
     return cached
 end
 
@@ -387,7 +605,7 @@ function Competition:RefreshCachedItemInfo(itemID)
     if not itemID then
         return
     end
-    for _, cached in pairs(self.unitCache) do
+    local function RefreshCache(cached)
         for _, equipped in pairs(cached.slots) do
             if equipped and equipped.itemID == itemID then
                 local itemInfo = { Addon:GetItemInfo(equipped.link or itemID) }
@@ -400,13 +618,28 @@ function Competition:RefreshCachedItemInfo(itemID)
                 equipped.quality = quality or equipped.quality
                 equipped.equipLoc = equipLoc or equipped.equipLoc
                 equipped.icon = icon or equipped.icon
-                equipped.itemLevel = GetDetailedItemLevel(equipped.link, itemID) or equipped.itemLevel
+                local itemLevel, baseItemLevel = GetDetailedItemLevel(equipped.link, itemID)
+                equipped.itemLevel = itemLevel or equipped.itemLevel
+                equipped.baseItemLevel = baseItemLevel or equipped.baseItemLevel
+                if not equipped.upgradeText and equipped.itemLevel and equipped.baseItemLevel
+                    and equipped.itemLevel > equipped.baseItemLevel then
+                    equipped.upgradeText = ("+%d"):format(equipped.itemLevel - equipped.baseItemLevel)
+                end
                 equipped.setID = setID or equipped.setID
                 equipped.raidTier = Addon.TierSets
                     and Addon.TierSets:GetRaidTierForItem(itemID, equipped.setID)
                 equipped.variantKey = Addon:GetItemVariantKey({ itemID = itemID, name = equipped.name })
                 equipped.tierInfo = Addon.TierSets and Addon.TierSets:GetTierItemInfo(itemID)
             end
+        end
+    end
+    for _, cached in pairs(self.unitCache) do
+        RefreshCache(cached)
+    end
+    local savedGuildCache = Addon.db and Addon.db.guildTierCache
+    if savedGuildCache then
+        for _, cached in pairs(savedGuildCache) do
+            RefreshCache(cached)
         end
     end
 end
@@ -516,10 +749,10 @@ function Competition:QueueMissingCandidates(forceRefresh)
     request.attemptedByGUID = request.attemptedByGUID or {}
 
     for _, candidate in ipairs(request.candidates) do
-        local cached = self:GetFreshCache(candidate.guid)
+        local cached = self:GetTeamTierCache(candidate.guid)
         local needsInspect = request.forceRefresh
             and not request.attemptedByGUID[candidate.guid]
-            or not cached
+            or not request.forceRefresh and not cached
         if needsInspect and (not self.active or self.active.guid ~= candidate.guid) then
             candidate.status = "queued"
             table.insert(self.queue, candidate.guid)
@@ -537,7 +770,7 @@ function Competition:GetNextInspectionCandidate()
         if candidate then
             local needsInspect = request.forceRefresh
                 and not request.attemptedByGUID[guid]
-                or not self:GetFreshCache(guid)
+                or not request.forceRefresh and not self:GetFreshCache(guid)
             if needsInspect then
                 request.attemptedByGUID[guid] = true
                 return candidate, "request"
@@ -548,9 +781,39 @@ function Competition:GetNextInspectionCandidate()
     while #self.backgroundQueue > 0 do
         local guid = table.remove(self.backgroundQueue, 1)
         self.backgroundQueued[guid] = nil
+        local forceRefresh = self.backgroundForceRefresh[guid]
+        self.backgroundForceRefresh[guid] = nil
         local candidate = self.membersByGUID[guid]
-        if candidate and not self:GetFreshCache(guid) then
+        if candidate and (forceRefresh or self.pendingInitialRefresh[guid] or not self:GetFreshCache(guid)) then
             return candidate, "background"
+        end
+    end
+end
+
+function Competition:DropOneShotQueues(status)
+    local request = self.request
+    if request then
+        for _, guid in ipairs(self.queue) do
+            request.attemptedByGUID[guid] = true
+            local candidate = request.candidateByGUID[guid]
+            if candidate then
+                candidate.status = status
+            end
+        end
+        WipeTable(self.queue)
+        WipeTable(self.queued)
+    end
+
+    for index = #self.backgroundQueue, 1, -1 do
+        local guid = self.backgroundQueue[index]
+        if self.backgroundForceRefresh[guid] and not self.pendingInitialRefresh[guid] then
+            table.remove(self.backgroundQueue, index)
+            self.backgroundQueued[guid] = nil
+            self.backgroundForceRefresh[guid] = nil
+            local member = self.membersByGUID[guid]
+            if member then
+                member.status = status
+            end
         end
     end
 end
@@ -591,6 +854,7 @@ function Competition:BeginInspect(candidate, queueKind)
         if member then
             member.status = "timeout"
         end
+        self:ScheduleInitialRetry(guid)
         self:NotifyUpdated()
         self:ScheduleProcess(math.max(0, self.nextInspectAt - GetTime()))
     end)
@@ -603,12 +867,11 @@ function Competition:ProcessQueue()
     end
 
     if IsPlayerInCombat() then
-        if request then
-            for _, guid in ipairs(self.queue) do
-                local candidate = request.candidateByGUID[guid]
-                if candidate then
-                    candidate.status = "combat"
-                end
+        self:DropOneShotQueues("combat")
+        for _, guid in ipairs(self.backgroundQueue) do
+            local member = self.membersByGUID[guid]
+            if member then
+                member.status = "combat"
             end
         end
         self:NotifyUpdated()
@@ -616,16 +879,17 @@ function Competition:ProcessQueue()
     end
 
     if IsInspectFrameBusy() then
-        if request then
-            for _, guid in ipairs(self.queue) do
-                local candidate = request.candidateByGUID[guid]
-                if candidate then
-                    candidate.status = "inspect_busy"
-                end
+        self:DropOneShotQueues("inspect_busy")
+        for _, guid in ipairs(self.backgroundQueue) do
+            local member = self.membersByGUID[guid]
+            if member then
+                member.status = "inspect_busy"
             end
         end
         self:NotifyUpdated()
-        self:ScheduleProcess(0.5)
+        if #self.backgroundQueue > 0 then
+            self:ScheduleProcess(0.5)
+        end
         return
     end
 
@@ -644,16 +908,21 @@ function Competition:ProcessQueue()
         local unit = candidate.unit
         if not UnitExists(unit) or UnitGUID(unit) ~= guid then
             candidate.status = "unavailable"
+            self:ScheduleInitialRetry(guid)
         elseif not UnitIsConnected(unit) then
             candidate.status = "offline"
+            self:ScheduleInitialRetry(guid)
         elseif UnitAffectingCombat and UnitAffectingCombat(unit) then
             candidate.status = "combat"
+            self:ScheduleInitialRetry(guid)
         elseif CheckInteractDistance and not CheckInteractDistance(unit, 1) then
             candidate.status = "out_of_range"
+            self:ScheduleInitialRetry(guid)
         else
             local ok, canInspect = pcall(CanInspect, unit)
             if not ok or not canInspect then
                 candidate.status = "unavailable"
+                self:ScheduleInitialRetry(guid)
             else
                 self:BeginInspect(candidate, queueKind)
                 return
@@ -666,9 +935,11 @@ end
 
 function Competition:GetGroupEquipmentRows()
     local rows = {}
+    local currentGUIDs = {}
 
     local playerGUID = UnitGUID("player")
     if playerGUID then
+        currentGUIDs[playerGUID] = true
         local cached = self:GetFreshCache(playerGUID)
         if not cached then
             cached = self:ScanUnit("player", playerGUID)
@@ -699,11 +970,15 @@ function Competition:GetGroupEquipmentRows()
     end
 
     for _, unit in ipairs(GetGroupUnits()) do
+        local unitGUID = UnitGUID(unit)
+        if unitGUID then
+            currentGUIDs[unitGUID] = true
+        end
         local candidate = self:CreateCandidate(unit)
         if candidate then
             local tracked = self.membersByGUID[candidate.guid]
             local requestCandidate = self.request and self.request.candidateByGUID[candidate.guid]
-            local cached = self:GetFreshCache(candidate.guid)
+            local cached = self:GetTeamTierCache(candidate.guid)
             local status = requestCandidate and requestCandidate.status
                 or tracked and tracked.status
                 or candidate.status
@@ -724,7 +999,36 @@ function Competition:GetGroupEquipmentRows()
             })
         end
     end
-    return rows
+
+    local guildRows = {}
+    local playerGuild = GetUnitGuildName("player")
+    local savedGuildCache = Addon.db and Addon.db.guildTierCache
+    if playerGuild and savedGuildCache then
+        for guid, saved in pairs(savedGuildCache) do
+            if not currentGUIDs[guid] and saved.guildName == playerGuild and saved.slots then
+                table.insert(guildRows, {
+                    guid = guid,
+                    name = saved.name,
+                    fullName = saved.fullName,
+                    classID = saved.classID,
+                    classFile = saved.classFile,
+                    status = "ready",
+                    cache = saved,
+                    isGuildHistory = true,
+                })
+            end
+        end
+        table.sort(guildRows, function(left, right)
+            local leftTime = tonumber(left.cache and left.cache.updatedAt) or 0
+            local rightTime = tonumber(right.cache and right.cache.updatedAt) or 0
+            if leftTime == rightTime then
+                return (left.fullName or left.name or "") < (right.fullName or right.name or "")
+            end
+            return leftTime > rightTime
+        end)
+    end
+
+    return rows, guildRows
 end
 
 function Competition:GetRows()
@@ -738,7 +1042,7 @@ function Competition:GetRows()
     local rows = {}
     local readyCount = 0
     for _, candidate in ipairs(request.candidates) do
-        local cached = self:GetFreshCache(candidate.guid)
+        local cached = self:GetTeamTierCache(candidate.guid)
         if self:IsCandidateEligible(candidate, cached, request.eligibility) then
             local row = {
                 guid = candidate.guid,
@@ -885,6 +1189,10 @@ Competition.queue = {}
 Competition.queued = {}
 Competition.backgroundQueue = {}
 Competition.backgroundQueued = {}
+Competition.backgroundForceRefresh = {}
+Competition.pendingInitialRefresh = {}
+Competition.initialRetryScheduled = {}
+Competition.groupScanCompleted = {}
 Competition.membersByGUID = {}
 Competition.requestSerial = 0
 Competition.inspectSerial = 0
@@ -913,10 +1221,12 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
         Competition:RestartRequest()
         Competition:RefreshGroupMembers()
     elseif event == "PLAYER_ENTERING_WORLD" then
-        WipeTable(Competition.unitCache)
         Competition:Cancel()
         WipeTable(Competition.backgroundQueue)
         WipeTable(Competition.backgroundQueued)
+        WipeTable(Competition.backgroundForceRefresh)
+        WipeTable(Competition.pendingInitialRefresh)
+        WipeTable(Competition.initialRetryScheduled)
         WipeTable(Competition.membersByGUID)
         C_Timer.After(1, function()
             Competition:RefreshGroupMembers()
@@ -932,18 +1242,11 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "UNIT_INVENTORY_CHANGED" then
         local unit = ...
         local guid = unit and UnitGUID(unit)
-        if guid and Competition.unitCache[guid] then
-            Competition.unitCache[guid] = nil
-            if Competition.request and Competition.request.candidateByGUID[guid] then
-                Competition.request.attemptedByGUID[guid] = nil
-                Competition:QueueMissingCandidates()
-                Competition:NotifyUpdated()
-            end
-            Competition:QueueBackgroundCandidate(guid)
-            Competition:ProcessQueue()
-            if UnitIsUnit(unit, "player") then
-                Competition:NotifyUpdated()
-            end
+        local cached = guid and Competition.unitCache[guid]
+        if guid and UnitIsUnit(unit, "player") then
+            cached = Competition:ScanUnit("player", guid)
+            cached.specID = Addon:GetCurrentSpecID()
+            Competition:NotifyUpdated()
         end
     elseif event == "GET_ITEM_INFO_RECEIVED" then
         local itemID = ...

@@ -5,22 +5,24 @@ Addon.UI = UI
 
 local WINDOW_WIDTH = 500
 local HEADER_HEIGHT = 82
-local FOOTER_HEIGHT = 26
+local FOOTER_HEIGHT = 0
 local ROW_WIDTH = 486
 local ROW_HEIGHT = 44
 local ITEMS_PER_PAGE = 6
 local ITEM_STEP = 38
 local TIER_PANEL_WIDTH = 58
 local TIER_PANEL_HEIGHT = 230
-local COMPETITION_PANEL_WIDTH = 470
-local COMPETITION_ROW_HEIGHT = 34
-local COMPETITION_VISIBLE_ROWS = 12
+local COMPETITION_PANEL_WIDTH = 350
+local COMPETITION_ROW_HEIGHT = 42
+local COMPETITION_SECTION_HEIGHT = 22
+local COMPETITION_VISIBLE_ROWS = 8
 local TEAM_TIER_WINDOW_WIDTH = 500
 local TEAM_TIER_ROW_WIDTH = 486
 local TEAM_TIER_ROW_HEIGHT = 48
 local TEAM_TIER_HEADER_HEIGHT = 66
-local TEAM_TIER_FOOTER_HEIGHT = 26
+local TEAM_TIER_FOOTER_HEIGHT = 0
 local TEAM_TIER_ITEM_STEP = 41
+local TEAM_TIER_GUILD_HEADER_HEIGHT = 28
 local ADDON_ICON = "Interface\\Icons\\INV_Misc_Map02"
 
 local TEAM_TIER_BORDER_COLORS = {
@@ -164,6 +166,9 @@ function UI:Create()
         self:HideCompetitionTooltip()
     end)
     frame:SetScript("OnShow", function()
+        Addon.db.filters.slot = "ALL"
+        Addon.db.filters.difficulty = 5
+        Addon.db.filters.favoritesOnly = false
         Addon.Journal:RefreshInstances()
         self:UpdateControls()
         self:QueueRefresh()
@@ -230,7 +235,7 @@ function UI:Create()
     if frame.Inset then
         frame.Inset:ClearAllPoints()
         frame.Inset:SetPoint("TOPLEFT", 3, -82)
-        frame.Inset:SetPoint("BOTTOMRIGHT", -3, 25)
+        frame.Inset:SetPoint("BOTTOMRIGHT", -3, 3)
         if frame.Inset.Bg then
             frame.Inset.Bg:SetAlpha(0.75)
         end
@@ -257,11 +262,6 @@ function UI:Create()
     self.emptyText:SetWidth(430)
     self.emptyText:SetText("正在读取地下城手册……")
 
-    self.footerText = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    self.footerText:SetPoint("BOTTOM", 0, 8)
-    self.footerText:SetWidth(450)
-    self.footerText:SetText("决战奥格瑞玛 · 左键查看队伍需求 · 右键设置收藏 · Shift+左键发送链接")
-
     self.rowPool = {}
     self:CreateCompetitionTooltip()
     self:CreateTierPanel(frame)
@@ -286,29 +286,129 @@ function UI:CreateCompetitionTooltip()
     panel:SetBackdropBorderColor(0.52, 0.42, 0.68, 0.98)
     panel:Hide()
 
-    panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    panel.title:SetPoint("TOPLEFT", 12, -10)
-    panel.title:SetText("队伍装备需求")
+    panel.target = CreateFrame("Frame", nil, panel)
+    panel.target:SetPoint("TOPLEFT", 8, -8)
+    panel.target:SetPoint("TOPRIGHT", -8, -8)
+    panel.target:SetHeight(44)
+    panel.target.background = panel.target:CreateTexture(nil, "BACKGROUND")
+    panel.target.background:SetAllPoints()
+    panel.target.background:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    panel.target.background:SetVertexColor(0.12, 0.09, 0.16, 0.72)
+    panel.target.icon = panel.target:CreateTexture(nil, "ARTWORK")
+    panel.target.icon:SetSize(36, 36)
+    panel.target.icon:SetPoint("LEFT", 5, 0)
+    panel.target.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    panel.target.borders = {}
+    local targetBorderPoints = {
+        { "TOPLEFT", -1, 1, "TOPRIGHT", 1, 1, 2 },
+        { "BOTTOMLEFT", -1, -1, "BOTTOMRIGHT", 1, -1, 2 },
+        { "TOPLEFT", -1, 1, "BOTTOMLEFT", -1, -1, 2, true },
+        { "TOPRIGHT", 1, 1, "BOTTOMRIGHT", 1, -1, 2, true },
+    }
+    for _, points in ipairs(targetBorderPoints) do
+        local border = panel.target:CreateTexture(nil, "OVERLAY")
+        border:SetTexture("Interface\\Buttons\\WHITE8X8")
+        border:SetPoint(points[1], panel.target.icon, points[1], points[2], points[3])
+        border:SetPoint(points[4], panel.target.icon, points[4], points[5], points[6])
+        if points[8] then
+            border:SetWidth(points[7])
+        else
+            border:SetHeight(points[7])
+        end
+        border:SetVertexColor(0.52, 0.42, 0.68, 1)
+        table.insert(panel.target.borders, border)
+    end
+    panel.target.itemLevel = panel.target:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    panel.target.itemLevel:SetPoint("BOTTOMRIGHT", panel.target.icon, "BOTTOMRIGHT", -1, 1)
+    panel.target.itemLevel:SetJustifyH("RIGHT")
+    local targetItemLevelFont = panel.target.itemLevel:GetFont()
+    if targetItemLevelFont then
+        panel.target.itemLevel:SetFont(targetItemLevelFont, 9, "OUTLINE")
+    end
+    panel.target.name = panel.target:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    panel.target.name:SetPoint("LEFT", panel.target.icon, "RIGHT", 8, 0)
+    panel.target.name:SetPoint("RIGHT", -8, 0)
+    panel.target.name:SetJustifyH("LEFT")
+    panel.target.name:SetWordWrap(false)
 
     panel.scrollFrame = CreateFrame("ScrollFrame", nil, panel)
-    panel.scrollFrame:SetPoint("TOPLEFT", 8, -29)
-    panel.scrollFrame:SetPoint("BOTTOMRIGHT", -8, 23)
+    panel.scrollFrame:SetPoint("TOPLEFT", 8, -60)
+    panel.scrollFrame:SetPoint("BOTTOMRIGHT", -8, 8)
 
     panel.content = CreateFrame("Frame", nil, panel.scrollFrame)
     panel.content:SetSize(COMPETITION_PANEL_WIDTH - 16, 1)
     panel.scrollFrame:SetScrollChild(panel.content)
 
-    panel.emptyText = panel.content:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    panel.emptyText:SetPoint("CENTER", 0, 0)
-    panel.emptyText:SetText("队伍中没有匹配的竞争者")
-    panel.emptyText:Hide()
-
-    panel.footer = panel:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    panel.footer:SetPoint("BOTTOMLEFT", 10, 7)
-    panel.footer:SetPoint("RIGHT", -10, 0)
-    panel.footer:SetJustifyH("LEFT")
+    local targetTooltip = CreateFrame("GameTooltip", "KeystoneLootMistsCompetitionTargetTooltip", UIParent, "GameTooltipTemplate")
+    self.competitionTargetTooltip = targetTooltip
+    targetTooltip:SetFrameStrata("TOOLTIP")
+    targetTooltip:SetFrameLevel(panel:GetFrameLevel() + 10)
+    targetTooltip:Hide()
+    panel:SetScript("OnHide", function()
+        targetTooltip:Hide()
+    end)
 
     panel.rowPool = {}
+    panel.sectionPool = {}
+end
+
+function UI:SetCompetitionTargetItem(item, meta)
+    local panel = self.competitionTooltip
+    local target = panel and panel.target
+    if not target then
+        return
+    end
+    panel.targetItem = item
+    local name, link, _, itemLevel, _, _, _, _, _, icon
+    if item then
+        name, link, _, itemLevel, _, _, _, _, _, icon = Addon:GetItemInfo(item.link or item.itemID)
+    end
+    target.icon:SetTexture(item and (item.icon or icon) or "Interface\\Icons\\INV_Misc_QuestionMark")
+    target.name:SetText(item and (item.link or link or item.name or name or "未知装备") or "未知装备")
+    local actualItemLevel = meta and meta.targetItemLevel or item and item.itemLevel or itemLevel
+    target.itemLevel:SetText(actualItemLevel and tostring(actualItemLevel) or "?")
+end
+
+function UI:ShowCompetitionTargetTooltip(item)
+    local panel = self.competitionTooltip
+    local tooltip = self.competitionTargetTooltip
+    if not panel or not panel:IsShown() or not tooltip or not item then
+        return
+    end
+    tooltip:SetOwner(panel, "ANCHOR_NONE")
+    tooltip:ClearLines()
+    tooltip:ClearAllPoints()
+    tooltip:SetPoint("BOTTOMRIGHT", panel, "TOPRIGHT", 0, 0)
+    if item.link and string.find(item.link, "|Hitem:") then
+        tooltip:SetHyperlink(item.link)
+    elseif tooltip.SetItemByID and item.itemID then
+        tooltip:SetItemByID(item.itemID)
+    elseif item.itemID then
+        tooltip:SetHyperlink("item:" .. item.itemID)
+    else
+        tooltip:SetText(item.name or "未知装备")
+    end
+    tooltip:Show()
+end
+
+function UI:GetCompetitionSection(key)
+    local panel = self.competitionTooltip
+    local section = panel.sectionPool[key]
+    if section then
+        return section
+    end
+
+    section = CreateFrame("Frame", nil, panel.content)
+    section:SetSize(COMPETITION_PANEL_WIDTH - 16, COMPETITION_SECTION_HEIGHT)
+    section.background = section:CreateTexture(nil, "BACKGROUND")
+    section.background:SetAllPoints()
+    section.background:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    section.label = section:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    section.label:SetPoint("LEFT", 7, 0)
+    section.count = section:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    section.count:SetPoint("RIGHT", -7, 0)
+    panel.sectionPool[key] = section
+    return section
 end
 
 function UI:GetCompetitionRow(index)
@@ -326,49 +426,30 @@ function UI:GetCompetitionRow(index)
     row.background:SetVertexColor(0.1, 0.08, 0.14, index % 2 == 0 and 0.30 or 0.12)
 
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.name:SetPoint("TOPLEFT", 5, -3)
-    row.name:SetWidth(235)
+    row.name:SetPoint("TOPLEFT", 7, -7)
+    row.name:SetWidth(225)
     row.name:SetJustifyH("LEFT")
     row.name:SetWordWrap(false)
 
     row.state = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.state:SetPoint("TOPRIGHT", -5, -3)
-    row.state:SetWidth(210)
-    row.state:SetJustifyH("RIGHT")
+    row.state:SetPoint("BOTTOMLEFT", 7, 6)
+    row.state:SetWidth(225)
+    row.state:SetJustifyH("LEFT")
     row.state:SetWordWrap(false)
 
-    row.gear = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    row.gear:SetPoint("BOTTOMLEFT", 5, 3)
-    row.gear:SetPoint("RIGHT", -5, 0)
-    row.gear:SetJustifyH("LEFT")
-    row.gear:SetWordWrap(false)
+    row.itemButtons = {}
+    for slotIndex = 1, 2 do
+        local itemButton = self:CreateTeamTierItemButton(row)
+        itemButton:SetPoint("RIGHT", -4 - (2 - slotIndex) * 40, 0)
+        row.itemButtons[slotIndex] = itemButton
+    end
 
     panel.rowPool[index] = row
     return row
 end
 
-function UI:FormatCompetitionItems(items)
-    if not items or #items == 0 then
-        return "|cff999999当前：空位|r"
-    end
-
-    local parts = {}
-    for _, equipped in ipairs(items) do
-        local itemText = equipped.link or equipped.name
-            or (equipped.itemID and ("物品 " .. equipped.itemID))
-            or "未知装备"
-        if equipped.itemLevel then
-            itemText = itemText .. (" |cffffffff%d|r"):format(equipped.itemLevel)
-        else
-            itemText = itemText .. " |cff999999?|r"
-        end
-        table.insert(parts, itemText)
-    end
-    return "当前：" .. table.concat(parts, " / ")
-end
-
 function UI:GetCompetitionStatusText(row, meta)
-    if row.status == "ready" then
+    if row.status == "ready" or row.hasCachedData then
         local text
         if row.needState == "need" then
             text = "|cffffc857有需求|r"
@@ -383,8 +464,8 @@ function UI:GetCompetitionStatusText(row, meta)
         else
             text = "|cffaaaaaa装等未知|r"
         end
-        if row.specUnknown then
-            text = text .. " · |cffaaaaaa专精未知|r"
+        if row.status ~= "ready" then
+            text = text .. " · |cffaaaaaa缓存|r"
         end
         return text
     end
@@ -405,54 +486,90 @@ end
 function UI:AnchorCompetitionTooltip()
     local panel = self.competitionTooltip
     panel:ClearAllPoints()
-    panel:SetPoint("TOPLEFT", self.tierPanel, "BOTTOMLEFT", 0, -4)
+    panel:SetPoint("TOPLEFT", self.tierPanel, "BOTTOMLEFT", 0, 0)
 end
 
-function UI:RenderCompetitionTooltip(button, rows, meta, isDemo)
+function UI:RenderCompetitionTooltip(button, rows, meta, isDemo, targetItem)
     local panel = self.competitionTooltip
     if not panel or not button or panel.owner ~= button then
         return
     end
 
     panel.isDemo = isDemo or nil
-    panel.title:SetText("队伍装备需求")
+    self:SetCompetitionTargetItem(targetItem or button.item, meta)
 
     for _, row in ipairs(panel.rowPool) do
         row:Hide()
     end
+    for _, section in pairs(panel.sectionPool) do
+        section:Hide()
+    end
 
     local rowCount = #rows
-    panel.emptyText:SetShown(rowCount == 0)
-    for index, data in ipairs(rows) do
-        local row = self:GetCompetitionRow(index)
-        row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", panel.content, "TOPLEFT", 0, -(index - 1) * COMPETITION_ROW_HEIGHT)
-
-        local specText = data.specID and data.specID ~= 0 and Addon:GetSpecName(data.specID) or "专精待确认"
-        row.name:SetText(GetClassColorText(data.name or "未知成员", data.classFile) .. " · " .. specText)
-        row.state:SetText(self:GetCompetitionStatusText(data, meta))
-        row.gear:SetText((data.status == "ready" or data.hasCachedData)
-            and self:FormatCompetitionItems(data.currentItems) or "")
-        row:Show()
+    local groups = {
+        need = {},
+        noNeed = {},
+        unread = {},
+    }
+    for _, data in ipairs(rows) do
+        if (data.status == "ready" or data.hasCachedData) and data.needState == "need" then
+            table.insert(groups.need, data)
+        elseif (data.status == "ready" or data.hasCachedData)
+            and (data.needState == "no_need" or data.needState == "equipped"
+                or data.needState == "same_level" or data.targetEquipped) then
+            table.insert(groups.noNeed, data)
+        else
+            table.insert(groups.unread, data)
+        end
     end
 
-    local contentRows = math.max(1, rowCount)
-    panel.content:SetHeight(contentRows * COMPETITION_ROW_HEIGHT)
-    local visibleRows = math.min(contentRows, COMPETITION_VISIBLE_ROWS)
-    panel:SetHeight(52 + visibleRows * COMPETITION_ROW_HEIGHT)
-    local maximumScroll = math.max(0, panel.content:GetHeight() - visibleRows * COMPETITION_ROW_HEIGHT)
+    local sections = {
+        { key = "need", label = "有需求", rows = groups.need, color = { 0.52, 0.32, 0.08, 0.62 } },
+        { key = "noNeed", label = "无需求", rows = groups.noNeed, color = { 0.12, 0.24, 0.14, 0.58 } },
+        { key = "unread", label = "未读取", rows = groups.unread, color = { 0.18, 0.18, 0.22, 0.58 } },
+    }
+    local contentOffset = 0
+    local rowIndex = 0
+    for _, sectionData in ipairs(sections) do
+        local section = self:GetCompetitionSection(sectionData.key)
+        section:ClearAllPoints()
+        section:SetPoint("TOPLEFT", panel.content, "TOPLEFT", 0, -contentOffset)
+        section.background:SetVertexColor(sectionData.color[1], sectionData.color[2], sectionData.color[3], sectionData.color[4])
+        section.label:SetText(sectionData.label)
+        section.count:SetText(tostring(#sectionData.rows))
+        section:Show()
+        contentOffset = contentOffset + COMPETITION_SECTION_HEIGHT
+
+        for _, data in ipairs(sectionData.rows) do
+            rowIndex = rowIndex + 1
+            local row = self:GetCompetitionRow(rowIndex)
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", panel.content, "TOPLEFT", 0, -contentOffset)
+            row.name:SetText(GetClassColorText(data.name or "未知成员", data.classFile))
+            row.state:SetText(self:GetCompetitionStatusText(data, meta))
+            for slotIndex, itemButton in ipairs(row.itemButtons) do
+                local equipped = (data.status == "ready" or data.hasCachedData)
+                    and data.currentItems and data.currentItems[slotIndex]
+                self:SetTeamTierItemButton(itemButton, equipped)
+                itemButton:SetShown(equipped ~= nil)
+            end
+            row:Show()
+            contentOffset = contentOffset + COMPETITION_ROW_HEIGHT
+        end
+    end
+
+    local contentHeight = math.max(1, contentOffset)
+    panel.content:SetHeight(contentHeight)
+    local visibleRows = math.min(math.max(1, rowCount), COMPETITION_VISIBLE_ROWS)
+    local visibleContentHeight = COMPETITION_SECTION_HEIGHT * #sections
+        + visibleRows * COMPETITION_ROW_HEIGHT
+    visibleContentHeight = math.min(contentHeight, visibleContentHeight)
+    panel:SetHeight(68 + visibleContentHeight)
+    local maximumScroll = math.max(0, contentHeight - visibleContentHeight)
     panel.scrollFrame:SetVerticalScroll(math.min(panel.scrollFrame:GetVerticalScroll(), maximumScroll))
-
-    local footer = ("已读取 %d / %d"):format(meta.ready or 0, meta.total or rowCount)
-    if rowCount > COMPETITION_VISIBLE_ROWS then
-        footer = footer .. " · 在面板内滚轮查看更多"
-    end
-    if not meta.reliable then
-        footer = footer .. " · 专精适配暂按可能竞争"
-    end
-    panel.footer:SetText(footer)
     self:AnchorCompetitionTooltip()
     panel:Show()
+    self:ShowCompetitionTargetTooltip(panel.targetItem)
 end
 
 function UI:ToggleCompetitionDemo()
@@ -558,7 +675,8 @@ function UI:ToggleCompetitionDemo()
         targetItemLevel = 553,
     }
 
-    self:RenderCompetitionTooltip(self.frame, rows, meta, true)
+    local targetItem = Addon.Journal:CompleteItemInfo({ itemID = 99327 })
+    self:RenderCompetitionTooltip(self.frame, rows, meta, true, targetItem)
     return true
 end
 
@@ -572,7 +690,6 @@ function UI:ShowCompetitionTooltip(button)
         panel.owner.competitionSelected = nil
     end
     panel.isDemo = nil
-    panel.title:SetText("队伍装备需求")
     button.competitionSelected = true
     panel.owner = button
     panel.scrollFrame:SetVerticalScroll(0)
@@ -598,7 +715,7 @@ function UI:HideCompetitionTooltip(button)
     end
     panel.owner = nil
     panel.isDemo = nil
-    panel.title:SetText("队伍装备需求")
+    panel.targetItem = nil
     panel:Hide()
 end
 
@@ -655,21 +772,17 @@ function UI:CreateTeamTierItemButton(parent)
         button.itemLevel:SetFont(fontPath, 9, "OUTLINE")
     end
 
+    button.upgradeLevel = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    button.upgradeLevel:SetPoint("TOPLEFT", button.icon, "TOPLEFT", 1, -1)
+    button.upgradeLevel:SetTextColor(0.35, 1, 0.45)
+    local upgradeFontPath = button.upgradeLevel:GetFont()
+    if upgradeFontPath then
+        button.upgradeLevel:SetFont(upgradeFontPath, 8, "OUTLINE")
+    end
+
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     button:SetScript("OnEnter", function(owner)
-        local item = owner.item
-        if not item then
-            return
-        end
-        GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-        if item.link then
-            GameTooltip:SetHyperlink(item.link)
-        elseif GameTooltip.SetItemByID and item.itemID then
-            GameTooltip:SetItemByID(item.itemID)
-        else
-            GameTooltip:SetText(item.name or "未知装备")
-        end
-        GameTooltip:Show()
+        self:ShowPlainItemTooltip(owner, owner.item, "ANCHOR_RIGHT")
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)
     return button
@@ -689,11 +802,13 @@ function UI:SetTeamTierItemButton(button, item)
         button.icon:SetDesaturated(false)
         button.icon:SetAlpha(1)
         button.itemLevel:SetText(item.itemLevel and tostring(item.itemLevel) or "?")
+        button.upgradeLevel:SetText(item.upgradeText or "")
     else
         button.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
         button.icon:SetDesaturated(true)
         button.icon:SetAlpha(0.25)
         button.itemLevel:SetText("")
+        button.upgradeLevel:SetText("")
     end
 end
 
@@ -719,6 +834,18 @@ function UI:GetTeamTierSummary(cache)
     return #parts > 0 and table.concat(parts, "+") or "散件"
 end
 
+function UI:FormatTeamTierUpdateTime(cache)
+    local updatedAt = tonumber(cache and cache.updatedAt)
+    if not updatedAt or updatedAt <= 0 or not date then
+        return cache and "更新：未知" or ""
+    end
+    local now = GetServerTime and GetServerTime() or (time and time()) or updatedAt
+    if date("%Y%m%d", now) == date("%Y%m%d", updatedAt) then
+        return "更新 " .. date("%H:%M", updatedAt)
+    end
+    return "更新 " .. date("%m/%d %H:%M", updatedAt)
+end
+
 function UI:CreateTeamTierRow(index)
     local frame = self.teamTierFrame
     local row = CreateFrame("Frame", nil, frame.content)
@@ -732,10 +859,19 @@ function UI:CreateTeamTierRow(index)
     row.portrait:SetSize(30, 30)
     row.portrait:SetPoint("LEFT", 8, 0)
     row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    row.name:SetPoint("LEFT", row.portrait, "RIGHT", 6, 0)
+    row.name:SetPoint("LEFT", row.portrait, "RIGHT", 6, 7)
     row.name:SetWidth(102)
     row.name:SetJustifyH("LEFT")
     row.name:SetWordWrap(false)
+    row.updatedAt = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    row.updatedAt:SetPoint("LEFT", row.portrait, "RIGHT", 6, -9)
+    row.updatedAt:SetWidth(102)
+    row.updatedAt:SetJustifyH("LEFT")
+    row.updatedAt:SetWordWrap(false)
+    local updatedFontPath = row.updatedAt:GetFont()
+    if updatedFontPath then
+        row.updatedAt:SetFont(updatedFontPath, 9)
+    end
 
     row.itemButtons = {}
     for slotIndex = 1, 5 do
@@ -761,6 +897,7 @@ end
 
 function UI:SetTeamTierRow(row, data, index)
     row.name:SetText(GetClassColorText(data.name or "未知成员", data.classFile))
+    row.updatedAt:SetText(self:FormatTeamTierUpdateTime(data.cache))
     local coords = CLASS_ICON_TCOORDS and data.classFile and CLASS_ICON_TCOORDS[data.classFile]
     if coords then
         row.portrait:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
@@ -812,8 +949,9 @@ function UI:CreateTeamTierFrame()
     end)
     frame:SetScript("OnShow", function()
         if Addon.Competition then
-            Addon.Competition:RefreshGroupMembers()
+            Addon.Competition:RefreshTeamTierEquipment()
         end
+        frame.scrollFrame:SetVerticalScroll(0)
         self:RefreshTeamTierFrame()
     end)
     frame:SetScript("OnHide", GameTooltip_Hide)
@@ -823,12 +961,12 @@ function UI:CreateTeamTierFrame()
     if frame.Inset then
         frame.Inset:ClearAllPoints()
         frame.Inset:SetPoint("TOPLEFT", 3, -TEAM_TIER_HEADER_HEIGHT)
-        frame.Inset:SetPoint("BOTTOMRIGHT", -3, TEAM_TIER_FOOTER_HEIGHT)
+        frame.Inset:SetPoint("BOTTOMRIGHT", -3, 3)
     end
 
     frame.headerName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     frame.headerName:SetPoint("TOPLEFT", 15, -42)
-    frame.headerName:SetText("队友")
+    frame.headerName:SetText("成员")
     local slotLabels = { "头", "肩", "胸", "手", "腿" }
     frame.headerSlots = {}
     for slotIndex, label in ipairs(slotLabels) do
@@ -857,10 +995,17 @@ function UI:CreateTeamTierFrame()
     frame.emptyText:SetPoint("TOP", 0, -40)
     frame.emptyText:SetText("暂无可显示角色")
 
-    frame.footer = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    frame.footer:SetPoint("BOTTOM", 0, 8)
-    frame.footer:SetWidth(470)
-    frame.footer:SetText("绿色 T16 · 橙色 T15/T14 · 红色散件")
+    frame.guildHeader = CreateFrame("Frame", nil, frame.content)
+    frame.guildHeader:SetSize(TEAM_TIER_ROW_WIDTH, TEAM_TIER_GUILD_HEADER_HEIGHT)
+    frame.guildHeader.background = frame.guildHeader:CreateTexture(nil, "BACKGROUND")
+    frame.guildHeader.background:SetAllPoints()
+    frame.guildHeader.background:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    frame.guildHeader.background:SetVertexColor(0.24, 0.16, 0.30, 0.72)
+    frame.guildHeader.label = frame.guildHeader:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.guildHeader.label:SetPoint("LEFT", 10, 0)
+    frame.guildHeader.label:SetText("曾组队的同公会成员")
+    frame.guildHeader:Hide()
+
     frame.rowPool = {}
 end
 
@@ -869,31 +1014,49 @@ function UI:RefreshTeamTierFrame()
     if not frame or not frame:IsShown() or not Addon.Competition then
         return
     end
-    local rows = Addon.Competition:GetGroupEquipmentRows()
+    local rows, guildRows = Addon.Competition:GetGroupEquipmentRows()
+    guildRows = guildRows or {}
     for _, row in ipairs(frame.rowPool) do
         row:Hide()
     end
-    local cachedCount = 0
-    for index, data in ipairs(rows) do
-        local row = frame.rowPool[index]
+    frame.guildHeader:Hide()
+
+    local rowPoolIndex = 0
+    local contentOffset = 0
+    local function ShowRow(data, showDivider)
+        rowPoolIndex = rowPoolIndex + 1
+        local row = frame.rowPool[rowPoolIndex]
         if not row then
-            row = self:CreateTeamTierRow(index)
-            frame.rowPool[index] = row
+            row = self:CreateTeamTierRow(rowPoolIndex)
+            frame.rowPool[rowPoolIndex] = row
         end
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -(index - 1) * TEAM_TIER_ROW_HEIGHT)
-        self:SetTeamTierRow(row, data, index)
-        row.divider:SetShown(index < #rows)
+        row:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -contentOffset)
+        self:SetTeamTierRow(row, data, rowPoolIndex)
+        row.divider:SetShown(showDivider)
         row:Show()
-        if data.cache then
-            cachedCount = cachedCount + 1
+        contentOffset = contentOffset + TEAM_TIER_ROW_HEIGHT
+    end
+
+    for index, data in ipairs(rows) do
+        ShowRow(data, index < #rows)
+    end
+
+    if #guildRows > 0 then
+        contentOffset = contentOffset + 6
+        frame.guildHeader:ClearAllPoints()
+        frame.guildHeader:SetPoint("TOPLEFT", frame.content, "TOPLEFT", 0, -contentOffset)
+        frame.guildHeader:Show()
+        contentOffset = contentOffset + TEAM_TIER_GUILD_HEADER_HEIGHT
+        for index, data in ipairs(guildRows) do
+            ShowRow(data, index < #guildRows)
         end
     end
-    local contentHeight = math.max(1, #rows * TEAM_TIER_ROW_HEIGHT)
+
+    local totalCount = #rows + #guildRows
+    local contentHeight = math.max(1, contentOffset)
     frame.content:SetHeight(contentHeight)
-    frame.emptyText:SetShown(#rows == 0)
-    frame.footer:SetText(("已缓存 %d / %d · 绿色 T16 · 橙色 T15/T14 · 红色散件")
-        :format(cachedCount, #rows))
+    frame.emptyText:SetShown(totalCount == 0)
     local desiredHeight = TEAM_TIER_HEADER_HEIGHT + TEAM_TIER_FOOTER_HEIGHT + contentHeight + 14
     local maximumHeight = math.max(340, UIParent:GetHeight() - 40)
     frame:SetHeight(math.max(260, math.min(desiredHeight, maximumHeight)))
@@ -1417,7 +1580,6 @@ function UI:Refresh()
     local desiredHeight = HEADER_HEIGHT + FOOTER_HEIGHT + contentHeight + 14
     local maximumHeight = math.max(430, UIParent:GetHeight() - 40)
     self.frame:SetHeight(math.min(desiredHeight, maximumHeight))
-    self.footerText:SetText(("决战奥格瑞玛 · %d 个首领 · %s"):format(#rows, self:GetDifficultyLabel()))
 end
 
 function UI:GetRow(index)
@@ -1557,6 +1719,13 @@ function UI:CreateItemButton(parent)
     button.favorite:SetDrawLayer("OVERLAY", 7)
     button.favorite:SetSize(18, 18)
     button.favorite:SetPoint("TOPRIGHT", button.icon, "TOPRIGHT", 5, 6)
+    button.itemLevel = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    button.itemLevel:SetPoint("BOTTOMRIGHT", button.icon, "BOTTOMRIGHT", -1, 1)
+    button.itemLevel:SetJustifyH("RIGHT")
+    local itemLevelFont = button.itemLevel:GetFont()
+    if itemLevelFont then
+        button.itemLevel:SetFont(itemLevelFont, 8, "OUTLINE")
+    end
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
 
     button:SetScript("OnEnter", function(owner)
@@ -1613,9 +1782,11 @@ function UI:SetItemButton(button, item, source)
     button.empty:Show()
     if item then
         button.icon:SetTexture(item.icon or 134400)
+        button.itemLevel:SetText(item.itemLevel and tostring(item.itemLevel) or "?")
         button:SetAlpha(1)
     else
         button.icon:SetTexture(nil)
+        button.itemLevel:SetText("")
         button.favorite:Hide()
         button:SetAlpha(0.55)
     end
@@ -1674,13 +1845,37 @@ function UI:OpenItemMenu(button)
     self:OpenMenu(button, options, 145, "TOPLEFT", "BOTTOMRIGHT")
 end
 
+function UI:ShowPlainItemTooltip(owner, item, anchor)
+    if not owner or not item then
+        return
+    end
+    GameTooltip:SetFrameStrata("TOOLTIP")
+    if GameTooltip.SetFrameLevel then
+        local panelLevel = self.competitionTooltip and self.competitionTooltip:GetFrameLevel() or 0
+        local ownerLevel = owner.GetFrameLevel and owner:GetFrameLevel() or 0
+        GameTooltip:SetFrameLevel(math.max(200, panelLevel + 20, ownerLevel + 20))
+    end
+    GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+    if item.link and string.find(item.link, "|Hitem:") then
+        GameTooltip:SetHyperlink(item.link)
+    elseif GameTooltip.SetItemByID and item.itemID then
+        GameTooltip:SetItemByID(item.itemID)
+    else
+        GameTooltip:SetText(item.name or "未知装备")
+    end
+    GameTooltip:Show()
+    if GameTooltip_HideShoppingTooltips then
+        GameTooltip_HideShoppingTooltips(GameTooltip)
+    end
+end
+
 function UI:ShowItemTooltip(button)
     if button:GetCenter() and button:GetCenter() > GetScreenWidth() / 2 then
         GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT", 0, 12)
     else
         GameTooltip:SetOwner(button, "ANCHOR_BOTTOMRIGHT", 0, 12)
     end
-    if button.item.link then
+    if button.item.link and string.find(button.item.link, "|Hitem:") then
         GameTooltip:SetHyperlink(button.item.link)
     elseif GameTooltip.SetItemByID then
         GameTooltip:SetItemByID(button.item.itemID)
@@ -1688,6 +1883,9 @@ function UI:ShowItemTooltip(button)
         GameTooltip:SetText(button.item.name or ("物品 " .. button.item.itemID))
     end
     GameTooltip:Show()
+    if GameTooltip_ShowCompareItem then
+        GameTooltip_ShowCompareItem(GameTooltip)
+    end
 end
 
 function UI:CreateMinimapButton()

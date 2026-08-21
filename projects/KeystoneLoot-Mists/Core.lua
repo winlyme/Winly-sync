@@ -24,10 +24,11 @@ local DEFAULTS = {
         classID = 0,
         specID = 0,
         slot = "ALL",
-        difficulty = 14,
+        difficulty = 5,
         favoritesOnly = false,
     },
     favorites = {},
+    guildTierCache = {},
 }
 
 local function CopyDefaults(source, target)
