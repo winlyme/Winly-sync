@@ -1080,7 +1080,7 @@ end
 
 function Competition:Request(item, source, owner, onUpdate)
     self:Cancel()
-    if not IsGrouped() or not item or not item.itemID then
+    if not item or not item.itemID then
         return false
     end
 
@@ -1201,13 +1201,20 @@ Competition.nextInspectAt = 0
 
 local eventFrame = CreateFrame("Frame")
 Competition.eventFrame = eventFrame
-eventFrame:RegisterEvent("INSPECT_READY")
-eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
-eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-eventFrame:RegisterEvent("UNIT_INVENTORY_CHANGED")
-eventFrame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+local events = {
+    "INSPECT_READY",
+    "GROUP_ROSTER_UPDATE",
+    "PLAYER_ENTERING_WORLD",
+    "PLAYER_REGEN_ENABLED",
+    "PLAYER_REGEN_DISABLED",
+    "UNIT_INVENTORY_CHANGED",
+    "GET_ITEM_INFO_RECEIVED",
+}
+for _, event in ipairs(events) do
+    -- Some Classic clients omit retail-era events.  One unavailable event
+    -- must not prevent the entire competition module from loading.
+    pcall(eventFrame.RegisterEvent, eventFrame, event)
+end
 
 eventFrame:SetScript("OnEvent", function(_, event, ...)
     if event == "INSPECT_READY" then

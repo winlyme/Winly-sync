@@ -389,6 +389,7 @@ function UI:ShowCompetitionTargetTooltip(item)
         tooltip:SetText(item.name or "未知装备")
     end
     tooltip:Show()
+    self:ApplyMaxUpgradePreview(tooltip, item)
 end
 
 function UI:GetCompetitionSection(key)
@@ -694,15 +695,25 @@ function UI:ShowCompetitionTooltip(button)
     panel.owner = button
     panel.scrollFrame:SetVerticalScroll(0)
     local expectedItemID = button.item and button.item.itemID
-    local requested = Addon.Competition:Request(button.item, button.source, button, function(rows, meta)
+
+    -- Open the panel before starting the inspect request.  This keeps the
+    -- selected item's details visible for solo players and for items whose
+    -- comparison slots cannot be resolved yet.
+    self:RenderCompetitionTooltip(button, {}, {
+        total = 0,
+        ready = 0,
+        reliable = false,
+        targetItemLevel = button.item and button.item.itemLevel,
+    })
+
+    Addon.Competition:Request(button.item, button.source, button, function(rows, meta)
         if panel.owner == button and button.competitionSelected
             and button.item and button.item.itemID == expectedItemID then
             self:RenderCompetitionTooltip(button, rows, meta)
         end
     end)
-    if not requested then
-        self:HideCompetitionTooltip(button)
-    end
+    -- A failed request means there is currently no comparable equipment data;
+    -- the target card and the empty competition sections should remain open.
 end
 
 function UI:HideCompetitionTooltip(button)
@@ -1719,13 +1730,6 @@ function UI:CreateItemButton(parent)
     button.favorite:SetDrawLayer("OVERLAY", 7)
     button.favorite:SetSize(18, 18)
     button.favorite:SetPoint("TOPRIGHT", button.icon, "TOPRIGHT", 5, 6)
-    button.itemLevel = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    button.itemLevel:SetPoint("BOTTOMRIGHT", button.icon, "BOTTOMRIGHT", -1, 1)
-    button.itemLevel:SetJustifyH("RIGHT")
-    local itemLevelFont = button.itemLevel:GetFont()
-    if itemLevelFont then
-        button.itemLevel:SetFont(itemLevelFont, 8, "OUTLINE")
-    end
     button:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
 
     button:SetScript("OnEnter", function(owner)
@@ -1782,11 +1786,9 @@ function UI:SetItemButton(button, item, source)
     button.empty:Show()
     if item then
         button.icon:SetTexture(item.icon or 134400)
-        button.itemLevel:SetText(item.itemLevel and tostring(item.itemLevel) or "?")
         button:SetAlpha(1)
     else
         button.icon:SetTexture(nil)
-        button.itemLevel:SetText("")
         button.favorite:Hide()
         button:SetAlpha(0.55)
     end
@@ -1869,22 +1871,253 @@ function UI:ShowPlainItemTooltip(owner, item, anchor)
     end
 end
 
+local function GetCurrentEquippedItemLevel(slot)
+    if ItemLocation and ItemLocation.CreateFromEquipmentSlot and C_Item and C_Item.GetCurrentItemLevel then
+        local location = ItemLocation:CreateFromEquipmentSlot(slot)
+        if location then
+            local ok, itemLevel = pcall(C_Item.GetCurrentItemLevel, location)
+            if ok and itemLevel then
+                return tonumber(itemLevel)
+            end
+        end
+    end
+    if Item and Item.CreateFromEquipmentSlot then
+        local ok, item = pcall(Item.CreateFromEquipmentSlot, Item, slot)
+        if ok and item and item.GetCurrentItemLevel then
+            local levelOK, itemLevel = pcall(item.GetCurrentItemLevel, item)
+            if levelOK and itemLevel then
+                return tonumber(itemLevel)
+            end
+        end
+    end
+    return nil
+end
+
+local function FindExactEquippedUpgradeSlot(item)
+    if not item or not item.itemID or not item.itemLevel or not GetInventoryItemID then
+        return nil
+    end
+    local targetItemLevel = tonumber(item.itemLevel)
+    for slot = 1, 19 do
+        if GetInventoryItemID("player", slot) == item.itemID then
+            local currentItemLevel = GetCurrentEquippedItemLevel(slot)
+            if currentItemLevel and targetItemLevel and currentItemLevel == targetItemLevel then
+                return slot
+            end
+        end
+    end
+    return nil
+end
+
+local function FormatTooltipNumber(value)
+    value = math.floor((tonumber(value) or 0) + 0.5)
+    if BreakUpLargeNumbers then
+        return BreakUpLargeNumbers(value)
+    end
+    return tostring(value)
+end
+
+local function EscapeLuaPattern(value)
+    return (string.gsub(value, "([%(%)%.%%%+%-%*%?%[%]%^%$])", "%%%1"))
+end
+
+local function ReplaceTooltipNumber(text, oldValue, newValue)
+    local formattedOld = FormatTooltipNumber(oldValue)
+    local formattedNew = FormatTooltipNumber(newValue)
+    local pattern = "%f[%d]" .. EscapeLuaPattern(formattedOld) .. "%f[%D]"
+    local replaced, count = string.gsub(text, pattern, formattedNew)
+    if count == 0 and formattedOld ~= tostring(oldValue) then
+        pattern = "%f[%d]" .. EscapeLuaPattern(tostring(oldValue)) .. "%f[%D]"
+        replaced = string.gsub(text, pattern, formattedNew)
+    end
+    return replaced
+end
+
+local function GetBaseItemStats(link)
+    if C_Item and C_Item.GetItemStats then
+        local ok, stats = pcall(C_Item.GetItemStats, link)
+        if ok then
+            return stats
+        end
+    end
+    if _G.GetItemStats then
+        local ok, stats = pcall(_G.GetItemStats, link)
+        if ok then
+            return stats
+        end
+    end
+    return nil
+end
+
+local function CopyTooltipFontString(source, target, copyWrapping)
+    if not source or not target then
+        return
+    end
+    if copyWrapping then
+        local sourceWidth = source:GetWidth()
+        if target.SetWordWrap then
+            target:SetWordWrap(true)
+        end
+        if target.SetNonSpaceWrap then
+            target:SetNonSpaceWrap(true)
+        end
+        if sourceWidth and sourceWidth > 0 then
+            target:SetWidth(sourceWidth)
+        end
+    end
+    target:SetText(source:GetText())
+    local red, green, blue, alpha = source:GetTextColor()
+    if red then
+        target:SetTextColor(red, green, blue, alpha)
+    end
+end
+
+local function MoveTooltipTexturesAfterLine(tooltip, lineIndex)
+    local tooltipName = tooltip:GetName()
+    local escapedTooltipName = EscapeLuaPattern(tooltipName)
+    for textureIndex = 1, 20 do
+        local texture = _G[tooltipName .. "Texture" .. textureIndex]
+        if texture then
+            local points = {}
+            local shouldMove = false
+            for pointIndex = 1, texture:GetNumPoints() do
+                local point, relativeTo, relativePoint, offsetX, offsetY = texture:GetPoint(pointIndex)
+                local relativeName = relativeTo and relativeTo.GetName and relativeTo:GetName()
+                local side, relativeLine = relativeName and string.match(
+                    relativeName,
+                    "^" .. escapedTooltipName .. "Text(Left)(%d+)$"
+                )
+                if not side then
+                    side, relativeLine = relativeName and string.match(
+                        relativeName,
+                        "^" .. escapedTooltipName .. "Text(Right)(%d+)$"
+                    )
+                end
+                relativeLine = tonumber(relativeLine)
+                if relativeLine and relativeLine > lineIndex then
+                    relativeTo = _G[tooltipName .. "Text" .. side .. (relativeLine + 1)] or relativeTo
+                    shouldMove = true
+                end
+                table.insert(points, { point, relativeTo, relativePoint, offsetX, offsetY })
+            end
+            if shouldMove then
+                texture:ClearAllPoints()
+                for _, pointData in ipairs(points) do
+                    texture:SetPoint(unpack(pointData))
+                end
+            end
+        end
+    end
+end
+
+local function InsertUpgradeLineAfter(tooltip, lineIndex)
+    if not lineIndex then
+        tooltip:AddLine("升级：2/2", 1, 0.82, 0)
+        return
+    end
+
+    local tooltipName = tooltip:GetName()
+    local originalLineCount = tooltip:NumLines()
+    -- The added row can receive the original tooltip's final description
+    -- while rows are shifted down.  It must be a wrapping row or long equip
+    -- effects will be laid out as one line and widen the whole tooltip.
+    tooltip:AddLine(" ", 1, 1, 1, true)
+    MoveTooltipTexturesAfterLine(tooltip, lineIndex)
+
+    for sourceIndex = originalLineCount, lineIndex + 1, -1 do
+        CopyTooltipFontString(
+            _G[tooltipName .. "TextLeft" .. sourceIndex],
+            _G[tooltipName .. "TextLeft" .. (sourceIndex + 1)],
+            true
+        )
+        CopyTooltipFontString(
+            _G[tooltipName .. "TextRight" .. sourceIndex],
+            _G[tooltipName .. "TextRight" .. (sourceIndex + 1)]
+        )
+    end
+
+    local upgradeLeft = _G[tooltipName .. "TextLeft" .. (lineIndex + 1)]
+    local upgradeRight = _G[tooltipName .. "TextRight" .. (lineIndex + 1)]
+    if upgradeLeft then
+        upgradeLeft:SetText("升级：2/2")
+        upgradeLeft:SetTextColor(1, 0.82, 0)
+    end
+    if upgradeRight then
+        upgradeRight:SetText(nil)
+    end
+end
+
+function UI:ApplyMaxUpgradePreview(tooltip, item)
+    if not tooltip or not item or item.upgradeLevel ~= 2 or not item.baseItemLevel or not item.itemLevel then
+        return
+    end
+
+    local tooltipName = tooltip:GetName()
+    local itemLevelPrefix = ITEM_LEVEL and string.match(ITEM_LEVEL, "^(.-)%%d")
+    local itemLevelLineIndex
+    local statReplacements = {}
+    local stats = GetBaseItemStats(item.link)
+    local itemLevelGain = math.max(0, tonumber(item.itemLevel) - tonumber(item.baseItemLevel))
+    local scale = math.pow(1.15, itemLevelGain / 15)
+    for _, baseValue in pairs(stats or {}) do
+        baseValue = tonumber(baseValue)
+        if baseValue and baseValue > 0 then
+            local upgradedValue = math.floor(baseValue * scale + 0.5)
+            if upgradedValue ~= baseValue then
+                table.insert(statReplacements, { base = baseValue, upgraded = upgradedValue })
+            end
+        end
+    end
+    table.sort(statReplacements, function(left, right)
+        return left.base > right.base
+    end)
+
+    for lineIndex = 1, tooltip:NumLines() do
+        local left = _G[tooltipName .. "TextLeft" .. lineIndex]
+        local text = left and left:GetText()
+        if text and itemLevelPrefix and string.find(text, itemLevelPrefix, 1, true) then
+            left:SetText(string.format(ITEM_LEVEL, item.itemLevel))
+            itemLevelLineIndex = lineIndex
+        elseif text then
+            local red, green, blue = left:GetTextColor()
+            if red and red > 0.75 and green > 0.75 and blue > 0.75 then
+                for _, replacement in ipairs(statReplacements) do
+                    text = ReplaceTooltipNumber(text, replacement.base, replacement.upgraded)
+                end
+                left:SetText(text)
+            end
+        end
+    end
+
+    InsertUpgradeLineAfter(tooltip, itemLevelLineIndex)
+    tooltip:Show()
+end
+
 function UI:ShowItemTooltip(button)
     if button:GetCenter() and button:GetCenter() > GetScreenWidth() / 2 then
         GameTooltip:SetOwner(button, "ANCHOR_BOTTOMLEFT", 0, 12)
     else
         GameTooltip:SetOwner(button, "ANCHOR_BOTTOMRIGHT", 0, 12)
     end
-    if button.item.link and string.find(button.item.link, "|Hitem:") then
+    local exactEquippedSlot = FindExactEquippedUpgradeSlot(button.item)
+    local usedEquippedTooltip = false
+    if exactEquippedSlot and GameTooltip.SetInventoryItem then
+        local ok = pcall(GameTooltip.SetInventoryItem, GameTooltip, "player", exactEquippedSlot)
+        usedEquippedTooltip = ok and GameTooltip:NumLines() > 0
+    end
+    if not usedEquippedTooltip and button.item.link and string.find(button.item.link, "|Hitem:") then
         GameTooltip:SetHyperlink(button.item.link)
-    elseif GameTooltip.SetItemByID then
+    elseif not usedEquippedTooltip and GameTooltip.SetItemByID then
         GameTooltip:SetItemByID(button.item.itemID)
-    else
+    elseif not usedEquippedTooltip then
         GameTooltip:SetText(button.item.name or ("物品 " .. button.item.itemID))
     end
     GameTooltip:Show()
     if GameTooltip_ShowCompareItem then
         GameTooltip_ShowCompareItem(GameTooltip)
+    end
+    if not usedEquippedTooltip then
+        self:ApplyMaxUpgradePreview(GameTooltip, button.item)
     end
 end
 

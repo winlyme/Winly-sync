@@ -7,9 +7,7 @@ Journal.SOO_JOURNAL_INSTANCE_ID = 369
 Journal.SOO_INSTANCE_ID = 1136
 Journal.instance = nil
 
-local MAX_UPGRADE_TYPE = "4"
-local MAX_UPGRADE_ID = "531"
-local MAX_UPGRADE_ITEM_LEVEL_BONUS = 8
+local SOO_MAX_UPGRADE_ITEM_LEVEL_BONUS = 14
 
 Journal.RAID_DIFFICULTIES = {
     { id = 14, fallback = "弹性" },
@@ -218,64 +216,6 @@ local function NormalizeModernLoot(info)
     }
 end
 
-local function SplitItemString(itemString)
-    local fields = {}
-    for value in string.gmatch(itemString .. ":", "(.-):") do
-        table.insert(fields, value)
-    end
-    return fields
-end
-
-local function BuildMaxUpgradeLink(link)
-    if type(link) ~= "string" then
-        return nil
-    end
-    local itemString = string.match(link, "|H(item:[^|]+)|h")
-        or string.match(link, "^(item:[^|]+)$")
-    if not itemString then
-        return nil
-    end
-
-    local fields = SplitItemString(itemString)
-    if fields[1] ~= "item" or not tonumber(fields[2]) then
-        return nil
-    end
-    for index = 3, 14 do
-        if fields[index] == nil or fields[index] == "" then
-            fields[index] = "0"
-        end
-    end
-
-    local bonusCount = math.max(0, tonumber(fields[14]) or 0)
-    local upgradeIndex = 15 + bonusCount
-    for index = 15, upgradeIndex do
-        if fields[index] == nil or fields[index] == "" then
-            fields[index] = "0"
-        end
-    end
-    fields[12] = MAX_UPGRADE_TYPE
-    fields[upgradeIndex] = MAX_UPGRADE_ID
-
-    local upgradedItemString = table.concat(fields, ":")
-    return string.gsub(link, itemString, upgradedItemString, 1)
-end
-
-local function GetDetailedItemLevel(link, fallback)
-    if C_Item and C_Item.GetDetailedItemLevelInfo and link then
-        local ok, itemLevel = pcall(C_Item.GetDetailedItemLevelInfo, link)
-        if ok and itemLevel then
-            return tonumber(itemLevel)
-        end
-    end
-    if _G.GetDetailedItemLevelInfo and link then
-        local ok, itemLevel = pcall(_G.GetDetailedItemLevelInfo, link)
-        if ok and itemLevel then
-            return tonumber(itemLevel)
-        end
-    end
-    return tonumber(fallback)
-end
-
 function Journal:GetLootInfo(index)
     if C_EncounterJournal and C_EncounterJournal.GetLootInfoByIndex then
         local ok, info = pcall(C_EncounterJournal.GetLootInfoByIndex, index)
@@ -323,25 +263,16 @@ function Journal:CompleteItemInfo(item)
     item.itemLevel = itemLevel
     item.icon = item.icon or icon or 134400
 
-    if item.slotKey and item.link then
-        local upgradedLink = BuildMaxUpgradeLink(item.link)
-        if upgradedLink then
-            local upgradedName, _, upgradedQuality, upgradedItemLevel, _, _, _, _, _, upgradedIcon =
-                Addon:GetItemInfo(upgradedLink)
-            local actualItemLevel = GetDetailedItemLevel(upgradedLink, upgradedItemLevel)
-            local baseItemLevel = tonumber(itemLevel)
-            if baseItemLevel and (not actualItemLevel or actualItemLevel <= baseItemLevel) then
-                actualItemLevel = baseItemLevel + MAX_UPGRADE_ITEM_LEVEL_BONUS
-            end
-            item.name = upgradedName or item.name
-            item.link = upgradedLink
-            item.quality = upgradedQuality or item.quality
-            item.baseItemLevel = baseItemLevel
-            item.itemLevel = actualItemLevel or item.itemLevel
-            item.icon = upgradedIcon or item.icon
-            item.upgradeLevel = 2
-            item.upgradeText = "2/2"
-        end
+    local baseItemLevel = tonumber(itemLevel)
+    if item.slotKey and item.link and baseItemLevel then
+        -- MoP Classic keeps an equipped item's Valor upgrade on its item
+        -- location, not in the public hyperlink.  Keep the real loot link and
+        -- let the UI render the max-upgrade preview instead of manufacturing a
+        -- retail-style bonus link that the Classic client ignores.
+        item.baseItemLevel = baseItemLevel
+        item.itemLevel = baseItemLevel + SOO_MAX_UPGRADE_ITEM_LEVEL_BONUS
+        item.upgradeLevel = 2
+        item.upgradeText = "2/2"
     end
     return item
 end
