@@ -1463,6 +1463,7 @@ function CCS:NewStatTable()
         MASTERY_RATING = 0,
         SPIRIT = 0,
         HIT_RATING = 0,
+        EXPERTISE_RATING = 0,
         VERSATILITY = 0,
         LEECH = 0,
         AVOIDANCE = 0,
@@ -1602,13 +1603,16 @@ function CCS:ParseItemStats(unit, slot)
         ["score de crit"]              = "CRIT_RATING",
     }
 
-    -- Spirit and hit were removed from later clients, so add them
+    -- Spirit, hit and expertise were removed from later clients, so add them
     -- conditionally for Classic versions instead of using nil table keys.
     if type(ITEM_MOD_SPIRIT_SHORT) == "string" and ITEM_MOD_SPIRIT_SHORT ~= "" then
         statKeywords[ITEM_MOD_SPIRIT_SHORT] = "SPIRIT"
     end
     if type(ITEM_MOD_HIT_RATING_SHORT) == "string" and ITEM_MOD_HIT_RATING_SHORT ~= "" then
         statKeywords[ITEM_MOD_HIT_RATING_SHORT] = "HIT_RATING"
+    end
+    if type(ITEM_MOD_EXPERTISE_RATING_SHORT) == "string" and ITEM_MOD_EXPERTISE_RATING_SHORT ~= "" then
+        statKeywords[ITEM_MOD_EXPERTISE_RATING_SHORT] = "EXPERTISE_RATING"
     end
 
     local function applyStat(value, keyword)
@@ -1937,6 +1941,7 @@ function CCS:ParseItemStats(unit, slot)
             MASTERY_RATING = { "ITEM_MOD_MASTERY_RATING_SHORT", "ITEM_MOD_MASTERY_RATING" },
             SPIRIT = { "ITEM_MOD_SPIRIT_SHORT", "ITEM_MOD_SPIRIT" },
             HIT_RATING = { "ITEM_MOD_HIT_RATING_SHORT", "ITEM_MOD_HIT_RATING" },
+            EXPERTISE_RATING = { "ITEM_MOD_EXPERTISE_RATING_SHORT", "ITEM_MOD_EXPERTISE_RATING" },
         }
         local resolvedAPIStats = {}
 
@@ -2975,6 +2980,7 @@ function CCS:ShowStatHighlights(statRowData)
                             totals.MASTERY_RATING = tonumber(apiStats.ITEM_MOD_MASTERY_RATING_SHORT or apiStats.ITEM_MOD_MASTERY_RATING) or 0
                             totals.SPIRIT = tonumber(apiStats.ITEM_MOD_SPIRIT_SHORT or apiStats.ITEM_MOD_SPIRIT) or 0
                             totals.HIT_RATING = tonumber(apiStats.ITEM_MOD_HIT_RATING_SHORT or apiStats.ITEM_MOD_HIT_RATING) or 0
+                            totals.EXPERTISE_RATING = tonumber(apiStats.ITEM_MOD_EXPERTISE_RATING_SHORT or apiStats.ITEM_MOD_EXPERTISE_RATING) or 0
                         end
                     end
                 end

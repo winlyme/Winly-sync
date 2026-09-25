@@ -2667,6 +2667,7 @@ CCS.statKeyMap = {
     secondary_haste       = "HASTE_RATING",
     secondary_mastery     = "MASTERY_RATING",
     secondary_spirit_hit  = { "SPIRIT", "HIT_RATING" },
+    secondary_spell_hit   = { "SPIRIT", "HIT_RATING", "EXPERTISE_RATING" },
     secondary_versatility = "VERSATILITY",
 }
 

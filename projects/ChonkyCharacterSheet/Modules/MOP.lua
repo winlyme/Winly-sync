@@ -18,7 +18,7 @@ local module = {
 CCS.Modules[module.Name] = module
 
 -- MoP uses Blizzard's native stat rows, so the Retail row handlers are not
--- available here.  Map the native labels to the four useful MoP stat groups
+-- available here.  Map the native labels to the useful MoP stat groups
 -- and feed them into the shared equipment-highlight renderer.
 local MOP_STAT_HIGHLIGHT_GROUPS = {
     {
@@ -45,6 +45,12 @@ local MOP_STAT_HIGHLIGHT_GROUPS = {
         icon = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\versatility.png",
         aliases = {},
     },
+    {
+        key = "secondary_spell_hit",
+        statKeys = { "SPIRIT", "HIT_RATING", "EXPERTISE_RATING" },
+        icon = "Interface\\AddOns\\ChonkyCharacterSheet\\Media\\Textures\\versatility.png",
+        aliases = {},
+    },
 }
 
 -- Read the final values shown by the equipped-item tooltip.  Unlike
@@ -65,6 +71,9 @@ local MOP_TOOLTIP_STAT_ALIASES = {
     },
     HIT_RATING = {
         "命中", "Hit Rating", "Hit", ITEM_MOD_HIT_RATING_SHORT, STAT_HIT_CHANCE,
+    },
+    EXPERTISE_RATING = {
+        "精准", "精準", "熟練", "Expertise", ITEM_MOD_EXPERTISE_RATING_SHORT,
     },
 }
 
@@ -109,6 +118,7 @@ local function NewMOPTooltipStatTotals()
         MASTERY_RATING = 0,
         SPIRIT = 0,
         HIT_RATING = 0,
+        EXPERTISE_RATING = 0,
     }
 end
 
@@ -224,10 +234,14 @@ AddMOPStatAliases(3,
 AddMOPStatAliases(4,
     ITEM_MOD_SPIRIT_SHORT, STAT_SPIRIT, SPELL_STAT5_NAME,
     ITEM_MOD_HIT_RATING_SHORT, STAT_HIT_CHANCE,
-    MELEE_HIT_CHANCE, RANGED_HIT_CHANCE, SPELL_HIT_CHANCE,
-    COMBAT_RATING_NAME6, COMBAT_RATING_NAME7, COMBAT_RATING_NAME8,
-    "精神", "命中", "近战命中", "远程命中", "法术命中",
-    "Spirit", "Hit", "Hit Chance", "Melee Hit", "Ranged Hit", "Spell Hit")
+    MELEE_HIT_CHANCE, RANGED_HIT_CHANCE,
+    COMBAT_RATING_NAME6, COMBAT_RATING_NAME7,
+    "精神", "命中", "近战命中", "远程命中",
+    "Spirit", "Hit", "Hit Chance", "Melee Hit", "Ranged Hit")
+
+AddMOPStatAliases(5,
+    ITEM_MOD_HIT_RATING_SHORT, STAT_HIT_CHANCE, SPELL_HIT_CHANCE, COMBAT_RATING_NAME8,
+    "命中", "法术命中", "法術命中", "Hit", "Hit Chance", "Spell Hit")
 
 local function MOPStatHighlightsEnabled()
     return option("show_stathighlights") ~= false
@@ -242,9 +256,20 @@ local function MOPStatLabelMatches(label, alias)
     return false
 end
 
-local function GetMOPStatGroupForText(text)
+local function GetMOPStatGroupForText(text, category)
     local label = NormalizeMOPStatLabel(text)
     if not label then return nil end
+
+    -- Native spell and physical hit rows share STAT_HIT_CHANCE.  Resolve
+    -- the spell category first without changing Spirit's existing group.
+    if category == "SPELL" then
+        local group = MOP_STAT_HIGHLIGHT_GROUPS[5]
+        for alias in pairs(group.aliases) do
+            if MOPStatLabelMatches(label, alias) then
+                return group
+            end
+        end
+    end
 
     for _, group in ipairs(MOP_STAT_HIGHLIGHT_GROUPS) do
         for alias in pairs(group.aliases) do
@@ -258,19 +283,133 @@ end
 local function GetMOPStatGroupForFrame(frame)
     if not frame then return nil end
 
+    -- Category frames are reorderable; use their category ID, not a
+    -- numbered frame name.  Also handle a focused text region in a row.
+    local category
+    local ancestor = frame
+    for _ = 1, 4 do
+        if not ancestor then break end
+        if ancestor.Category then
+            category = ancestor.Category
+            break
+        end
+        ancestor = type(ancestor.GetParent) == "function" and ancestor:GetParent() or nil
+    end
+
     if type(frame.GetText) == "function" then
-        local group = GetMOPStatGroupForText(frame:GetText())
+        local group = GetMOPStatGroupForText(frame:GetText(), category)
         if group then return group end
     end
 
     if type(frame.GetRegions) == "function" then
         for _, region in ipairs({ frame:GetRegions() }) do
             if type(region.GetText) == "function" then
-                local group = GetMOPStatGroupForText(region:GetText())
+                local group = GetMOPStatGroupForText(region:GetText(), category)
                 if group then return group end
             end
         end
     end
+end
+
+-- Keep the native spell-hit modifiers (including converted Spirit), then
+-- add expertise in percentage points.  Never add to the displayed text:
+-- these rows are refreshed repeatedly and may be recycled when reordered.
+local mopSpellHitRows = setmetatable({}, { __mode = "k" })
+local mopOriginalSpellHitOnEnter
+
+local function GetMOPSpellHitChance()
+    if type(GetCombatRatingBonus) ~= "function" or not CR_HIT_SPELL then return nil end
+
+    local ratingBonus = tonumber(GetCombatRatingBonus(CR_HIT_SPELL)) or 0
+    local modifier = type(GetSpellHitModifier) == "function" and GetSpellHitModifier() or 0
+    local expertise
+    if type(GetExpertisePercent) == "function" then
+        expertise = GetExpertisePercent()
+    end
+    if type(expertise) ~= "number" and CR_EXPERTISE then
+        expertise = GetCombatRatingBonus(CR_EXPERTISE)
+    end
+    expertise = tonumber(expertise) or 0
+
+    return ratingBonus + (tonumber(modifier) or 0) + expertise, expertise
+end
+
+local function FormatMOPSpellHitChance(value)
+    if value >= 0 then return string.format("+%.2f%%", value) end
+    return (RED_FONT_COLOR_CODE or "|cffff2020") .. string.format("%.2f%%", value) .. "|r"
+end
+
+local function UpdateMOPSpellHitRow(statFrame, unit)
+    if unit ~= "player" or not statFrame then return end
+    local frameName = statFrame:GetName()
+    local valueText = frameName and _G[frameName .. "StatText"] or statFrame.Value
+    local hitChance = GetMOPSpellHitChance()
+    if not valueText or hitChance == nil then return end
+
+    mopSpellHitRows[statFrame] = true
+    valueText:SetText(FormatMOPSpellHitChance(hitChance))
+    -- Rows created before hook installation still hold the old function.
+    if mopOriginalSpellHitOnEnter and statFrame:GetScript("OnEnter") == mopOriginalSpellHitOnEnter then
+        statFrame:SetScript("OnEnter", SpellHitChance_OnEnter)
+    end
+end
+
+local function UpdateMOPSpellHitTooltip(statFrame)
+    if MOVING_STAT_CATEGORY or not GameTooltip or GameTooltip:GetOwner() ~= statFrame then return end
+    local hitChance, expertise = GetMOPSpellHitChance()
+    if hitChance == nil then return end
+
+    local title = _G.GameTooltipTextLeft1
+    if title then
+        title:SetText((HIGHLIGHT_FONT_COLOR_CODE or "|cffffffff")
+            .. string.format(PAPERDOLLFRAME_TOOLTIP_FORMAT or "%s", STAT_HIT_CHANCE or "Hit Chance")
+            .. " " .. FormatMOPSpellHitChance(hitChance) .. "|r")
+    end
+    -- The native function rebuilds the tooltip before this hook.  Keep its
+    -- GetSpellMissChance rows intact; subtracting expertise again is wrong.
+    if expertise > 0 then
+        GameTooltip:AddDoubleLine(ITEM_MOD_EXPERTISE_RATING_SHORT or "Expertise",
+            string.format("+%.2f%%", expertise), 1, 0.82, 0, 1, 1, 1)
+    end
+    GameTooltip:Show()
+end
+
+local function ScheduleMOPSpellHitRefresh(event, unit)
+    if event:sub(1, 5) == "UNIT_" and unit ~= "player" then return end
+    if not CharacterStatsPane or not CharacterStatsPane:IsVisible() or CCS.mopSpellHitRefreshPending then return end
+    CCS.mopSpellHitRefreshPending = true
+    C_Timer.After(0, function()
+        CCS.mopSpellHitRefreshPending = false
+        if not CharacterStatsPane or not CharacterStatsPane:IsVisible() then return end
+        for row in pairs(mopSpellHitRows) do
+            local group = GetMOPStatGroupForFrame(row)
+            if row:IsVisible() and group and group.key == "secondary_spell_hit" then
+                UpdateMOPSpellHitRow(row, "player")
+                if GameTooltip and GameTooltip:GetOwner() == row and GameTooltip:IsShown() then
+                    SpellHitChance_OnEnter(row)
+                end
+            end
+        end
+    end)
+end
+
+local function EnableMOPSpellHitDisplay()
+    if CCS.mopSpellHitDisplayHooked then return end
+    if type(PaperDollFrame_SetSpellHitChance) ~= "function"
+        or type(SpellHitChance_OnEnter) ~= "function"
+        or type(CCS.RegisterEvent) ~= "function" then return end
+
+    mopOriginalSpellHitOnEnter = SpellHitChance_OnEnter
+    hooksecurefunc("PaperDollFrame_SetSpellHitChance", UpdateMOPSpellHitRow)
+    hooksecurefunc("SpellHitChance_OnEnter", UpdateMOPSpellHitTooltip)
+    -- The custom sheet unregisters PaperDollFrame's native events.  Refresh
+    -- only the spell-hit rows through the addon's existing event dispatcher.
+    for _, event in ipairs({ "COMBAT_RATING_UPDATE", "PLAYER_EQUIPMENT_CHANGED",
+        "UNIT_STATS", "UNIT_AURA", "UNIT_LEVEL", "PLAYER_TALENT_UPDATE",
+        "ACTIVE_TALENT_GROUP_CHANGED", "SPELL_POWER_CHANGED" }) do
+        CCS:RegisterEvent(event, ScheduleMOPSpellHitRefresh, true, { CCS.MOP })
+    end
+    CCS.mopSpellHitDisplayHooked = true
 end
 
 local function ClearMOPStatHighlightSelection()
@@ -354,6 +493,10 @@ local function HookMOPStatRows()
     local function WalkFrameTree(frame)
         if not frame or visited[frame] then return end
         visited[frame] = true
+        local group = GetMOPStatGroupForFrame(frame)
+        if group and group.key == "secondary_spell_hit" then
+            UpdateMOPSpellHitRow(frame, "player")
+        end
         HookMOPStatFrame(frame)
         if type(frame.GetChildren) == "function" then
             for _, child in ipairs({ frame:GetChildren() }) do
@@ -596,6 +739,7 @@ end
 local function InitStats()
     if not CharacterStatsPane then return end
 
+    EnableMOPSpellHitDisplay()
     EnableMOPStatHoverTracker()
 
     CharacterStatsPane.ScrollBox:ClearAllPoints()
@@ -652,9 +796,8 @@ local function InitStats()
             CharacterFrame.CCSMOPStatHighlightHideHook = true
         end
 
-        if MOPStatHighlightsEnabled() then
-            ScheduleMOPStatRowHooks()
-        else
+        ScheduleMOPStatRowHooks()
+        if not MOPStatHighlightsEnabled() then
             ClearMOPStatHighlightSelection()
         end
     
